@@ -22,10 +22,9 @@ enum vga_color {
     VGA_COLOR_WHITE = 15,
 };
 
-void vgaterm_initialize(void);
-void vgaterm_writestring(const char *);
-uint8_t vgaterm_entry_color(enum vga_color, enum vga_color);
-void vgaterm_setcolor(uint8_t);
-void vgaterm_putchar(char);
+void vgaterm_clear(void);
+void vgaterm_print(const char *);
+void vgaterm_setcolor(enum vga_color fg, enum vga_color bg);
+void vgaterm_putchar(char c);
 
 #endif /* __VGATERM_H */
