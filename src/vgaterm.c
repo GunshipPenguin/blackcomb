@@ -7,7 +7,7 @@
 
 #define VGATERM_WIDTH 80
 #define VGATERM_HEIGHT 25
-#define VGATERM_BUF_START ((uint16_t *)0xB8000)
+#define VGATERM_BUF_START ((uint16_t *)0xC03FF000)
 
 #define VGATERM_ENTRY(c, color) (uint16_t)(c | color << 8)
 #define VGATERM_COLOR(fg, bg) ((uint8_t)(fg | bg << 4))

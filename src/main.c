@@ -1,6 +1,6 @@
 #include "vgaterm.h"
 
-int kernel_main()
+int kernel_main(uint32_t multiboot_info)
 {
     vgaterm_clear();
     vgaterm_setcolor(VGA_COLOR_GREEN, VGA_COLOR_BLACK);
@@ -9,7 +9,11 @@ int kernel_main()
     vgaterm_print("=========\n");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
-    vgaterm_print("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n123456789\n");
+    vgaterm_print("Hello paging world");
     for (;;) {
     }
+}
+
+void _putchar(char c)
+{
 }

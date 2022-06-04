@@ -1,3 +1,6 @@
+CC=gcc
+AS=nasm
+
 CFLAGS=-m32 -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
 LDFLAGS=-m32 -no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
 ASFLAGS =-f elf32
@@ -17,16 +20,16 @@ kern.iso: iso/boot/kern.elf
 	grub-mkrescue -o kern.iso iso
 
 iso/boot/kern.elf: out/ $(OBJS)
-	gcc $(LDFLAGS) $(OBJS) -o iso/boot/kern.elf
+	$(CC) $(LDFLAGS) $(OBJS) -o iso/boot/kern.elf
 
 out/:
 	mkdir -p out/
 
 out/%.o: src/%.S
-	nasm $(ASFLAGS) $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@
 
 out/%.o: src/%.c
-	gcc $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@
 
 clean:
 	rm -rf kern.iso iso/boot/kern.elf out/
