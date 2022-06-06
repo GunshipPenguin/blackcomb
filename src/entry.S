@@ -22,6 +22,8 @@ boot_page_directory:
 resb PAGE_SIZE
 boot_page_table1:
 resb PAGE_SIZE
+boot_page_table2:
+resb PAGE_SIZE
 
 align 16
 stack_bottom:
@@ -35,27 +37,58 @@ _start:
     mov esi, 0
     mov ecx, 1023
 
+; Setup page table for kernel to map 0x00100000 to virtual address 0xC0100000
 map_kernel_loop:
     cmp esi, __kernel_start
-    jl next_page
+    jl kern_nextpage
 
     cmp esi, __kernel_end - KERNEL_TEXT_BASE
-    jge done_mapping_kernel
+    jge map_mboot_info
 
     mov edx, esi
     or edx, 0x3
     mov [edi], edx
 
-next_page:
+kern_nextpage:
     add esi, PAGE_SIZE
     add edi, 4
     loop map_kernel_loop
 
-done_mapping_kernel:
+; Setup page table for multiboot information to map [ebx] to 0xA0000000
+map_mboot_info:
+    mov eax, DWORD [ebx]                         ; eax = size of multiboot information
+    mov esi, ebx                                 ; esi = Current physical address
+    mov edi, boot_page_table2 - KERNEL_TEXT_BASE ; edi = address of current PTE
+
+    ; Page align the physical address down
+    and edi, 0xFFFFFFE000
+
+    ; We need to map up to an extra 4096 bytes due to the rounding, so add 4096 to the size
+    add eax, PAGE_SIZE
+
+map_mboot_loop:
+    ; eax = size remaining: Have we already mapped everything?
+    cmp eax, 0
+    jl mapping_done
+    sub eax, PAGE_SIZE
+
+    ; No? Ok, map another page
+    mov edx, esi
+    or edx, 0x3 ; edx = physical address | 0x3 (read/write)
+    mov [edi], edx
+
+mb_nextpage:
+    add esi, PAGE_SIZE
+    add edi, 4
+    jmp map_mboot_loop
+
+; Kernel / multiboot info mapping done, insert entries in page directories
+mapping_done:
     mov DWORD [(boot_page_table1 - KERNEL_TEXT_BASE) + (1023 * 4)], 0xB8003
 
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 768 * 4], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
+    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 640 * 4], boot_page_table2 - KERNEL_TEXT_BASE + 0x3
 
     mov ecx, boot_page_directory - KERNEL_TEXT_BASE
     mov cr3, ecx
