@@ -7,13 +7,13 @@ ASFLAGS =-f elf32
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
-SRCS=$(wildcard src/*.[c,S])
+SRCS=$(wildcard src/*.c src/*.asm)
 OBJS=$(addprefix out/, $(addsuffix .o, $(basename $(notdir $(SRCS:.c=.o)))))
 
 all: kern.iso
 
 run: kern.iso
-	qemu-system-x86_64 -serial stdio -cdrom kern.iso
+	qemu-system-i386 -monitor stdio -cdrom kern.iso
 
 format:
 	clang-format -i src/*.c src/*.h
@@ -27,7 +27,7 @@ iso/boot/kern.elf: out/ $(OBJS)
 out/:
 	mkdir -p out/
 
-out/%.o: src/%.S
+out/%.o: src/%.asm
 	$(AS) $(ASFLAGS) $< -o $@
 
 out/%.o: src/%.c

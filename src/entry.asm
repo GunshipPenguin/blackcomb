@@ -1,3 +1,12 @@
+extern kernel_main
+extern __kernel_start
+extern __kernel_end
+
+%define KERNEL_TEXT_BASE 0xC0000000
+%define PAGE_SIZE 4096
+
+section .multiboot
+align 64
 header_start:
     dd 0xE85250D6                ; Magic number (multiboot 2)
     dd 0                         ; Architecture 0 (protected mode i386)
@@ -8,14 +17,8 @@ header_start:
     dd 8
 header_end:
 
-extern kernel_main
-extern __kernel_start
-extern __kernel_end
-
-%define KERNEL_TEXT_BASE 0xC0000000
-%define VGABUF 0xB8000
-%define PAGE_SIZE 4096
-
+; Small area for a bootstrap page table, just enough to map the kernel text and multiboot info
+; and call kernel_main, we'll replace this shortly
 section .bss
 align PAGE_SIZE
 boot_page_directory:
@@ -60,8 +63,9 @@ map_mboot_info:
     mov esi, ebx                                 ; esi = Current physical address
     mov edi, boot_page_table2 - KERNEL_TEXT_BASE ; edi = address of current PTE
 
-    ; Page align the physical address down
-    and edi, 0xFFFFFFE000
+    ; Page align the physical address down, ebx is only guaranteed to be 8-byte aligned as per
+    ; the multiboot 2 spec
+    and edi, 0xFFFFE000
 
     ; We need to map up to an extra 4096 bytes due to the rounding, so add 4096 to the size
     add eax, PAGE_SIZE
@@ -84,10 +88,18 @@ mb_nextpage:
 
 ; Kernel / multiboot info mapping done, insert entries in page directories
 mapping_done:
+    ; Map VGA video memory to 0xC03FF000 via the last entry of the text page table
     mov DWORD [(boot_page_table1 - KERNEL_TEXT_BASE) + (1023 * 4)], 0xB8003
 
+    ; Insert page directory entries
+
+    ; Identity map the kernel text so we can execute the next instruction when we enable paging
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
+
+    ; Map kernel text to 0xC0100000
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 768 * 4], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
+
+    ; Map multiboot information to 0xA0000000
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 640 * 4], boot_page_table2 - KERNEL_TEXT_BASE + 0x3
 
     mov ecx, boot_page_directory - KERNEL_TEXT_BASE
@@ -97,25 +109,17 @@ mapping_done:
     or ecx, 0x80010000
     mov cr0, ecx
 
-    lea ecx, jump_to_main
+    lea ecx, [jump_to_main]
     jmp ecx
 
 section .text
 jump_to_main:
+    ; Unmap the identity map, we don't need it anymore
     mov DWORD [boot_page_directory + 0], 0
     mov ecx, cr3
     mov cr3, ecx
 
     mov esp, stack_top
+
     push ebx
     call kernel_main
-
-    cli
-    hlt
-
-err:
-    mov dword [VGABUF + 4], 0x4F4F4F52
-    mov dword [VGABUF + 8], 0x4F3A4F52
-    mov dword [VGABUF + 12], 0x4F204F20
-    mov byte  [VGABUF + 14], al
-    hlt
