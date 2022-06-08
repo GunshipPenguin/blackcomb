@@ -18,6 +18,12 @@ size_t vgaterm_x;
 uint8_t vgaterm_color;
 uint16_t *vgaterm_buf;
 
+/* Make printf go to the vga terminal */
+void _putchar(char c)
+{
+    vgaterm_putchar(c);
+}
+
 static void vgaterm_scroll()
 {
     for (size_t row = 0; row < VGATERM_HEIGHT; row++) {

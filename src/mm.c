@@ -4,25 +4,13 @@
 
 #include "multiboot2.h"
 #include "printf.h"
-
-#define ALIGNUP(val, align) ({ \
-	const typeof((val)) _val = (val); \
-	const typeof((align)) _align = (align); \
-	(_val + (_align - 1)) & -_align; })
+#include "util.h"
 
 struct multiboot_info {
     int32_t total_size;
     int32_t reserved;
     struct multiboot_tag tags[];
 };
-
-
-
-void panic(char *s)
-{
-    printf("%s\n", s);
-    for (;;) {}
-}
 
 static struct multiboot_tag_mmap *mboot_find_mmap(void *mboot_info_start)
 {
@@ -34,14 +22,14 @@ static struct multiboot_tag_mmap *mboot_find_mmap(void *mboot_info_start)
             break;
         else if (curr->type == MULTIBOOT_TAG_TYPE_END)
             break;
-        uintptr_t next = ALIGNUP((uintptr_t) curr + curr->size, 8);
-        curr = (struct multiboot_tag *) next;
+        uintptr_t next = ALIGNUP((uintptr_t)curr + curr->size, 8);
+        curr = (struct multiboot_tag *)next;
     }
 
     if (curr->type == MULTIBOOT_TAG_TYPE_END)
         panic("No MMAP multiboot tag found");
 
-    return (struct multiboot_tag_mmap *) curr;
+    return (struct multiboot_tag_mmap *)curr;
 }
 
 void mm_init(void *mboot_info_start)
@@ -50,7 +38,7 @@ void mm_init(void *mboot_info_start)
     struct multiboot_mmap_entry *entry = mmap->entries;
 
     printf("Multiboot2 memory map:\n");
-    while ((uintptr_t) entry < (uintptr_t) mmap + mmap->size) {
+    while ((uintptr_t)entry < (uintptr_t)mmap + mmap->size) {
         char *type;
         switch (entry->type) {
         case MULTIBOOT_MEMORY_AVAILABLE:
@@ -75,6 +63,6 @@ void mm_init(void *mboot_info_start)
         uintptr_t start = entry->addr;
         uintptr_t end = entry->addr + entry->len;
         printf("entry %p-%p %s\n", start, end, type);
-        entry = (struct multiboot_mmap_entry *) ((uintptr_t) entry + mmap->entry_size);
+        entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
     }
 }
