@@ -65,7 +65,7 @@ map_mboot_info:
 
     ; Page align the physical address down, ebx is only guaranteed to be 8-byte aligned as per
     ; the multiboot 2 spec
-    and edi, 0xFFFFE000
+    and edi, 0xFFFFF000
 
     ; We need to map up to an extra 4096 bytes due to the rounding, so add 4096 to the size
     add eax, PAGE_SIZE
