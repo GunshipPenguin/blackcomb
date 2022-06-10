@@ -121,5 +121,9 @@ jump_to_main:
 
     mov esp, stack_top
 
+    ; Convert multiboot2 info physical address to virtual address
+    and ebx, 0xFFF
+    add ebx, 0xA0000000
     push ebx
+
     call kernel_main
