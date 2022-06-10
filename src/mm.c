@@ -9,6 +9,9 @@
 
 #define VIRT_TO_PHYS(x) (x - KERNEL_TEXT_BASE)
 
+#define PGDIR_NDX(x) (((uintptr_t) x) >> 22)
+#define PGTBL_NDX(x) ((((uintptr_t) x) >> 12) & 0xFFF)
+
 /* Bootstrap page tables */
 uint32_t pgdir[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
 uint32_t pgtbl_text[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
@@ -39,7 +42,6 @@ static struct multiboot_tag_mmap *mboot_find_mmap(void *mboot_info_start)
 
     return (struct multiboot_tag_mmap *)curr;
 }
-
 static void mm_print_mmap(void *mboot_info_start)
 {
     struct multiboot_tag_mmap *mmap = mboot_find_mmap(mboot_info_start);
@@ -77,19 +79,13 @@ static void mm_print_mmap(void *mboot_info_start)
 
 static void mm_setup_kernel_text_map()
 {
-    uintptr_t start = (uintptr_t)&__kernel_start_phys;
-    uintptr_t end = (uintptr_t)&__kernel_end_phys;
-    for (int i = 0; i < PGTBL_NENTRIES; i++) {
-        uintptr_t entry_addr = i * PAGE_SIZE;
-        if (entry_addr < start)
-            continue;
-        else if (entry_addr > end)
-            break;
-
-        pgtbl_text[i] = entry_addr | 0x03;
+    uintptr_t curr = (uintptr_t)&__kernel_start_phys;
+    while (curr < (uintptr_t) &__kernel_end_phys) {
+        pgtbl_text[PGTBL_NDX(curr)] = curr | 0x3;
+        curr += PAGE_SIZE;
     }
 
-    pgdir[768] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
+    pgdir[PGDIR_NDX(KERNEL_TEXT_BASE)] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
 }
 
 static void set_cr3(uintptr_t addr)
@@ -108,7 +104,11 @@ static void mm_setup_arenas(void *mboot_info_start)
             continue;
         }
 
-        /* TODO: Free memory not starting at the zero-page, use it for our init arena */
+        /*
+         * Ok, we've found some free memory not starting at the zero-page, use
+         * it for our init arena.
+         */
+        
     }
 }
 
