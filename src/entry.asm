@@ -1,6 +1,6 @@
 extern kernel_main
-extern __kernel_start
-extern __kernel_end
+extern __kernel_start_phys
+extern __kernel_end_phys
 
 %define KERNEL_TEXT_BASE 0xC0000000
 %define PAGE_SIZE 4096
@@ -42,10 +42,10 @@ _start:
 
 ; Setup page table for kernel to map 0x00100000 to virtual address 0xC0100000
 map_kernel_loop:
-    cmp esi, __kernel_start
+    cmp esi, __kernel_start_phys
     jl kern_nextpage
 
-    cmp esi, __kernel_end - KERNEL_TEXT_BASE
+    cmp esi, __kernel_end_phys
     jge map_mboot_info
 
     mov edx, esi

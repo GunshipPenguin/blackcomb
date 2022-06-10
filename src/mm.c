@@ -2,9 +2,17 @@
 
 #include <stdint.h>
 
+#include "defs.h"
 #include "multiboot2.h"
 #include "printf.h"
 #include "util.h"
+
+#define VIRT_TO_PHYS(x) (x - KERNEL_TEXT_BASE)
+
+/* Bootstrap page tables */
+uint32_t pgdir[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
+uint32_t pgtbl_text[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
+uint32_t pgtbl_arena[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
 
 struct multiboot_info {
     int32_t total_size;
@@ -32,7 +40,7 @@ static struct multiboot_tag_mmap *mboot_find_mmap(void *mboot_info_start)
     return (struct multiboot_tag_mmap *)curr;
 }
 
-void mm_init(void *mboot_info_start)
+static void mm_print_mmap(void *mboot_info_start)
 {
     struct multiboot_tag_mmap *mmap = mboot_find_mmap(mboot_info_start);
     struct multiboot_mmap_entry *entry = mmap->entries;
@@ -65,4 +73,49 @@ void mm_init(void *mboot_info_start)
         printf("entry %p-%p %s\n", start, end, type);
         entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
     }
+}
+
+static void mm_setup_kernel_text_map()
+{
+    uintptr_t start = (uintptr_t)&__kernel_start_phys;
+    uintptr_t end = (uintptr_t)&__kernel_end_phys;
+    for (int i = 0; i < PGTBL_NENTRIES; i++) {
+        uintptr_t entry_addr = i * PAGE_SIZE;
+        if (entry_addr < start)
+            continue;
+        else if (entry_addr > end)
+            break;
+
+        pgtbl_text[i] = entry_addr | 0x03;
+    }
+
+    pgdir[768] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
+}
+
+static void set_cr3(uintptr_t addr)
+{
+    asm volatile("movl %0, %%cr3" : : "r"(VIRT_TO_PHYS(addr)));
+}
+
+static void mm_setup_arenas(void *mboot_info_start)
+{
+    struct multiboot_tag_mmap *mmap = mboot_find_mmap(mboot_info_start);
+    struct multiboot_mmap_entry *entry = mmap->entries;
+
+    while ((uintptr_t)entry < (uintptr_t)mmap + mmap->size) {
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE || entry->addr == 0) {
+            entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
+            continue;
+        }
+
+        /* TODO: Free memory not starting at the zero-page, use it for our init arena */
+    }
+}
+
+void mm_init(void *mboot_info_start)
+{
+    mm_print_mmap(mboot_info_start);
+
+    mm_setup_kernel_text_map();
+    set_cr3((uintptr_t)pgdir);
 }

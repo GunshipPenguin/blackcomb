@@ -8,6 +8,8 @@ KERNEL_TEXT_BASE = 0xC0000000;
 SECTIONS
 {
     . = PHYS;
+    __kernel_start_phys = .;
+
     .multiboot : {
         *(.multiboot);
     }
@@ -18,7 +20,6 @@ SECTIONS
 
     . += KERNEL_TEXT_BASE;
 
-    __kernel_start = .;
     .text ALIGN(PAGE_SIZE) : AT(ADDR(.text) - KERNEL_TEXT_BASE) {
         *(.text);
     }
@@ -34,5 +35,6 @@ SECTIONS
     .bss ALIGN(PAGE_SIZE) : AT(ADDR(.bss) - KERNEL_TEXT_BASE) {
         *(.bss)
     }
-    __kernel_end = .;
+
+    __kernel_end_phys = . - KERNEL_TEXT_BASE;
 }
