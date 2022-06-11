@@ -7,8 +7,11 @@ ASFLAGS =-f elf32
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
-SRCS=$(shell find src -name "*.c" -o -name "*.asm")
-OBJS = $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
+C_SRCS=$(shell find src -name "*.c")
+ASM_SRCS=$(shell find src -name "*.asm")
+SRCS=$(C_SRCS) $(ASM_SRCS)
+
+OBJS= $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
 
 all: kern.iso
 
@@ -16,7 +19,7 @@ run: kern.iso
 	qemu-system-i386 -monitor stdio -cdrom kern.iso
 
 format:
-	clang-format -i src/*.c src/*.h
+	clang-format -i $(C_SRCS)
 
 kern.iso: iso/boot/kern.elf
 	grub-mkrescue -o kern.iso iso
