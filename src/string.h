@@ -6,4 +6,7 @@
 size_t strlen(const char *);
 size_t strnlen(const char *, size_t);
 
+void *memset(void *s, int c, size_t n);
+void *memcpy(void *dest, const void *src, size_t n);
+
 #endif /* __STRING_H */
