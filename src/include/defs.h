@@ -1,6 +1,8 @@
 #ifndef __DEFS_H
 #define __DEFS_H
 
+#include <stdint.h>
+
 extern uintptr_t __kernel_start_phys;
 extern uintptr_t __kernel_end_phys;
 
