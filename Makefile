@@ -1,14 +1,14 @@
 CC=gcc
 AS=nasm
 
-CFLAGS=-m32 -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
+CFLAGS=-m32 -I src/include -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
 LDFLAGS=-m32 -no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
 ASFLAGS =-f elf32
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
-SRCS=$(wildcard src/*.c src/*.asm)
-OBJS=$(addprefix out/, $(addsuffix .o, $(basename $(notdir $(SRCS:.c=.o)))))
+SRCS=$(shell find src -name "*.c" -o -name "*.asm")
+OBJS = $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
 
 all: kern.iso
 
@@ -27,13 +27,13 @@ iso/boot/kern.elf: out/ $(OBJS)
 out/:
 	mkdir -p out/
 
-out/%.o: src/%.asm
+%.o: %.asm
 	$(AS) $(ASFLAGS) $< -o $@
 
-out/%.o: src/%.c
+%.o: %.c
 	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-	rm -rf kern.iso iso/boot/kern.elf out/
+	rm -rf kern.iso iso/boot/kern.elf $(OBJS)
 
 .PHONY: all clean run format

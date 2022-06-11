@@ -1,3 +1,3 @@
-out/
+*.o
 iso/boot/kern.elf
 *.iso
