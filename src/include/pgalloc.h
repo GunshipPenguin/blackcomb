@@ -7,6 +7,11 @@
  * due to the size of the arena, we panic */
 #define ARENA_HDR_NPAGES 5
 
-void mm_arena_setup(void *start, size_t size);
+struct arena_hdr;
+
+void *pgframe_free(struct arena_hdr *arena, void *phys);
+void *pgframe_alloc(struct arena_hdr *arena);
+
+void pgframe_arena_init(void *arena_start, void *arena_start_phys, size_t size);
 
 #endif /* __ARENA_H */

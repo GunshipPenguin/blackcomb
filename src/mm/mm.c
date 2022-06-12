@@ -3,9 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "arena.h"
 #include "defs.h"
 #include "multiboot2.h"
+#include "pgalloc.h"
 #include "printf.h"
 #include "string.h"
 #include "util.h"
@@ -94,10 +94,11 @@ static void mm_map_kernel()
         pgtbl_text[PGTBL_NDX(curr)] = curr | 0x3;
         curr += PAGE_SIZE;
     }
+    pgtbl_text[1023] = 0xB8003;
     pgdir[PGDIR_NDX(KERNEL_TEXT_BASE)] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
 }
 
-static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *size)
+static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, void **phys, size_t *size)
 {
     struct multiboot_mmap_entry *entry = mmap->entries;
     bool found = false;
@@ -113,7 +114,7 @@ static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *size)
     }
 
     if (!found)
-        panic("Could not find memory region to use for init arena");
+        panic("Could not find memory region to use for init pgalloc arena");
 
     /*
      * Ok, we've found a region of available physical memory not starting at
@@ -139,8 +140,10 @@ static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *size)
     }
 
     *size = arena_size;
+    *phys = (void *)arena_start;
 
-    printf("using available region at %p of size %x for init arena\n", arena_start, arena_size);
+    printf("using available region at %p of size %x for init pgalloc arena\n", arena_start,
+           arena_size);
 
     /*
      * Map ARENA_HDR_NPAGES pages at the start of the arena into kernel memory.
@@ -162,6 +165,7 @@ void mm_init(void *mboot_info_start)
     struct mboot_info *mboot = mboot_info_start;
     struct multiboot_tag_mmap *mmap = mboot_find_tag(mboot, MULTIBOOT_TAG_TYPE_MMAP);
     struct multiboot_mmap_entry *init_arena_region;
+    void *init_arena_phys;
     size_t init_arena_size;
 
     if (mmap == NULL)
@@ -170,9 +174,17 @@ void mm_init(void *mboot_info_start)
     mm_print_mmap(mmap);
 
     mm_map_kernel();
-    mm_map_init_arena(mmap, &init_arena_size);
+    mm_map_init_arena(mmap, &init_arena_phys, &init_arena_size);
 
     set_cr3(pgdir);
 
-    mm_arena_setup((void *)INIT_ARENA_BASE, init_arena_size);
+    struct arena_hdr *init_arena = (struct arena_hdr *)INIT_ARENA_BASE;
+    pgframe_arena_init(init_arena, init_arena_phys, init_arena_size);
+
+    for (int i = 0; i < 10; i++) {
+        void *addr = pgframe_alloc(init_arena);
+        printf("%p\n", addr);
+        if (i % 2 == 0)
+            pgframe_free(init_arena, addr);
+    }
 }
