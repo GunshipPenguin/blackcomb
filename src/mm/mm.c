@@ -4,16 +4,15 @@
 #include <stdint.h>
 
 #include "defs.h"
+#include "kmalloc.h"
 #include "multiboot2.h"
 #include "pgalloc.h"
 #include "printf.h"
 #include "string.h"
 #include "util.h"
+#include "vmm.h"
 
 #define VIRT_TO_PHYS(x) (x - KERNEL_TEXT_BASE)
-
-#define PGDIR_NDX(x) (((uintptr_t)x) >> 22)
-#define PGTBL_NDX(x) ((((uintptr_t)x) >> 12) & 0xFFF)
 
 #define INIT_ARENA_BASE ((void *)0xB0000000)
 
@@ -98,7 +97,7 @@ static void mm_map_kernel()
     pgdir[PGDIR_NDX(KERNEL_TEXT_BASE)] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
 }
 
-static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, void **phys, size_t *size)
+static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *phys, size_t *size)
 {
     struct multiboot_mmap_entry *entry = mmap->entries;
     bool found = false;
@@ -140,7 +139,7 @@ static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, void **phys, size
     }
 
     *size = arena_size;
-    *phys = (void *)arena_start;
+    *phys = arena_start;
 
     printf("using available region at %p of size %x for init pgalloc arena\n", arena_start,
            arena_size);
@@ -165,7 +164,7 @@ void mm_init(void *mboot_info_start)
     struct mboot_info *mboot = mboot_info_start;
     struct multiboot_tag_mmap *mmap = mboot_find_tag(mboot, MULTIBOOT_TAG_TYPE_MMAP);
     struct multiboot_mmap_entry *init_arena_region;
-    void *init_arena_phys;
+    uintptr_t init_arena_phys;
     size_t init_arena_size;
 
     if (mmap == NULL)
@@ -175,16 +174,13 @@ void mm_init(void *mboot_info_start)
 
     mm_map_kernel();
     mm_map_init_arena(mmap, &init_arena_phys, &init_arena_size);
+    pgdir[1023] = VIRT_TO_PHYS((uint32_t)pgdir) | 0x3;
 
     set_cr3(pgdir);
 
     struct arena_hdr *init_arena = (struct arena_hdr *)INIT_ARENA_BASE;
-    pgframe_arena_init(init_arena, init_arena_phys, init_arena_size);
 
-    for (int i = 0; i < 10; i++) {
-        void *addr = pgframe_alloc(init_arena);
-        printf("%p\n", addr);
-        if (i % 2 == 0)
-            pgframe_free(init_arena, addr);
-    }
+    pgframe_arena_init(init_arena, init_arena_phys, init_arena_size);
+    vmm_init(init_arena);
+    kmalloc_init();
 }
