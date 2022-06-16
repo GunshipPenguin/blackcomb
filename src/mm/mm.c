@@ -12,13 +12,11 @@
 #include "util.h"
 #include "vmm.h"
 
-#define VIRT_TO_PHYS(x) (x - KERNEL_TEXT_BASE)
+#define INIT_ARENA_BASE 0xB0000000
 
-#define INIT_ARENA_BASE ((void *)0xB0000000)
+#define VIRT_TO_PHYS(x) ((x)-KERNEL_TEXT_BASE)
 
-/* Bootstrap page tables */
-uint32_t pgdir[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
-uint32_t pgtbl_text[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
+/* Used to bootstrap the initial mm arena, then discarded */
 uint32_t pgtbl_arena[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
 
 struct mboot_info {
@@ -80,23 +78,6 @@ static void mm_print_mmap(struct multiboot_tag_mmap *mmap)
     }
 }
 
-static void set_cr3(void *addr)
-{
-    asm volatile("movl %0, %%cr3" : : "r"(VIRT_TO_PHYS(addr)));
-}
-
-static void mm_map_kernel()
-{
-    /* Map kernel text */
-    uintptr_t curr = (uintptr_t)KERN_START;
-    while (curr < (uintptr_t)KERN_END) {
-        pgtbl_text[PGTBL_NDX(curr)] = curr | 0x3;
-        curr += PAGE_SIZE;
-    }
-    pgtbl_text[1023] = 0xB8003;
-    pgdir[PGDIR_NDX(KERNEL_TEXT_BASE)] = VIRT_TO_PHYS((uintptr_t)pgtbl_text) | 0x3;
-}
-
 static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *phys, size_t *size)
 {
     struct multiboot_mmap_entry *entry = mmap->entries;
@@ -156,7 +137,7 @@ static void mm_map_init_arena(struct multiboot_tag_mmap *mmap, uintptr_t *phys, 
         curr_phys += PAGE_SIZE;
         curr_virt += PAGE_SIZE;
     }
-    pgdir[PGDIR_NDX(INIT_ARENA_BASE)] = VIRT_TO_PHYS((uintptr_t)pgtbl_arena) | 0x3;
+    pgdir_set_entry(PGDIR_NDX(INIT_ARENA_BASE), VIRT_TO_PHYS((uintptr_t)pgtbl_arena) | 0x3);
 }
 
 void mm_init(void *mboot_info_start)
@@ -171,15 +152,9 @@ void mm_init(void *mboot_info_start)
         panic("Could not find multiboot2 mmap tag");
 
     mm_print_mmap(mmap);
-
-    mm_map_kernel();
     mm_map_init_arena(mmap, &init_arena_phys, &init_arena_size);
-    pgdir[1023] = VIRT_TO_PHYS((uint32_t)pgdir) | 0x3;
-
-    set_cr3(pgdir);
 
     struct arena_hdr *init_arena = (struct arena_hdr *)INIT_ARENA_BASE;
-
     pgframe_arena_init(init_arena, init_arena_phys, init_arena_size);
     vmm_init(init_arena);
     kmalloc_init();

@@ -20,25 +20,25 @@
 uintptr_t curr_brk;
 struct arena_hdr *arena;
 
-static void pgdir_set_entry(int i, uint32_t val)
+void pgdir_set_entry(int i, uint32_t val)
 {
     uint32_t *addr = PGDIR_ENTRY_ADDR(i);
     *addr = val;
 }
 
-static void pgtbl_set_entry(int dir_i, int tbl_i, uint32_t val)
+void pgtbl_set_entry(int dir_i, int tbl_i, uint32_t val)
 {
     uint32_t *addr = PGTBL_ENTRY_ADDR(dir_i, tbl_i);
     *addr = val;
 }
 
-static uint32_t pgdir_get_entry(int i)
+uint32_t pgdir_get_entry(int i)
 {
     uint32_t *addr = PGDIR_ENTRY_ADDR(i);
     return *addr;
 }
 
-static uint32_t pgtbl_get_entry(int dir_i, int tbl_i)
+uint32_t pgtbl_get_entry(int dir_i, int tbl_i)
 {
     uint32_t *addr = PGTBL_ENTRY_ADDR(dir_i, tbl_i);
     return *addr;

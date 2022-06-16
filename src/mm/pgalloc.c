@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#define INIT_ARENA_BASE ((void *)0xB0000000)
+
 struct arena_hdr {
     size_t size;
     uintptr_t start;

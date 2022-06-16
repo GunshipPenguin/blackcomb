@@ -102,6 +102,9 @@ mapping_done:
     ; Map multiboot information to 0xA0000000
     mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 640 * 4], boot_page_table2 - KERNEL_TEXT_BASE + 0x3
 
+    ; Recursively map page tables/directory to the last 4M
+    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 1023 * 4], boot_page_directory - KERNEL_TEXT_BASE + 0x3
+
     mov ecx, boot_page_directory - KERNEL_TEXT_BASE
     mov cr3, ecx
 
