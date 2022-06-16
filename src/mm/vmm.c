@@ -1,9 +1,10 @@
 #include "vmm.h"
+
 #include "defs.h"
 #include "mm.h"
-#include "util.h"
-
+#include "multiboot2.h"
 #include "pgalloc.h"
+#include "util.h"
 
 #include <stdint.h>
 
@@ -18,27 +19,26 @@
     ((uint32_t *)((PGDIR_RECURSIVE_BASE + (PAGE_SIZE * dir_i))) + tbl_i)
 
 uintptr_t curr_brk;
-struct arena_hdr *arena;
 
-static void pgdir_set_entry(int i, uint32_t val)
+void pgdir_set_entry(int i, uint32_t val)
 {
     uint32_t *addr = PGDIR_ENTRY_ADDR(i);
     *addr = val;
 }
 
-static void pgtbl_set_entry(int dir_i, int tbl_i, uint32_t val)
+void pgtbl_set_entry(int dir_i, int tbl_i, uint32_t val)
 {
     uint32_t *addr = PGTBL_ENTRY_ADDR(dir_i, tbl_i);
     *addr = val;
 }
 
-static uint32_t pgdir_get_entry(int i)
+uint32_t pgdir_get_entry(int i)
 {
     uint32_t *addr = PGDIR_ENTRY_ADDR(i);
     return *addr;
 }
 
-static uint32_t pgtbl_get_entry(int dir_i, int tbl_i)
+uint32_t pgtbl_get_entry(int dir_i, int tbl_i)
 {
     uint32_t *addr = PGTBL_ENTRY_ADDR(dir_i, tbl_i);
     return *addr;
@@ -59,7 +59,7 @@ void vmm_map_page(uintptr_t virt, uintptr_t phys)
 
     if (pgdir_get_entry(dir_i) == 0) {
         /* No page table allocated here, get a free physical page */
-        uintptr_t new_frame = pgframe_alloc(arena);
+        uintptr_t new_frame = pgframe_alloc();
         uint32_t entry = new_frame | 0x3;
         pgdir_set_entry(dir_i, entry);
     }
@@ -80,14 +80,13 @@ void vmm_unmap_page(uintptr_t virt)
     }
 
     /* Entire page table is 0, we can free the frame */
-    pgframe_free(arena, pgdir_get_entry(dir_i) & ~PAGE_MASK);
+    pgframe_free(pgdir_get_entry(dir_i) & ~PAGE_MASK);
     pgdir_set_entry(dir_i, 0);
 }
 
-void vmm_init(struct arena_hdr *a)
+void vmm_init()
 {
     curr_brk = BRK_START;
-    arena = a;
 }
 
 void *sbrk(intptr_t inc)
@@ -98,7 +97,7 @@ void *sbrk(intptr_t inc)
         uintptr_t new_map_end = ALIGNUP(curr_brk + inc, PAGE_SIZE);
 
         for (int addr = new_map_start; addr < new_map_end; addr += PAGE_SIZE) {
-            uintptr_t frame = pgframe_alloc(arena);
+            uintptr_t frame = pgframe_alloc();
             vmm_map_page(addr, frame);
         }
 
@@ -108,7 +107,7 @@ void *sbrk(intptr_t inc)
         uintptr_t new_unmap_end = ALIGNUP(curr_brk + inc, PAGE_SIZE);
 
         for (int addr = new_unmap_start; addr >= new_unmap_end; addr -= PAGE_SIZE) {
-            pgframe_free(arena, vmm_get_phys(addr));
+            pgframe_free(vmm_get_phys(addr));
             vmm_unmap_page(addr);
         }
     }

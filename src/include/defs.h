@@ -11,6 +11,7 @@ extern uintptr_t __kernel_end_phys;
 
 #define KERNEL_TEXT_BASE 0xC0000000
 
+#define PAGE_SHIFT 12
 #define PAGE_MASK 0xFFF
 #define PAGE_SIZE 4096
 
