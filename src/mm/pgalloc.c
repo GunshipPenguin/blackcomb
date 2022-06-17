@@ -26,10 +26,12 @@ struct arena_hdr {
 
 void arena_set_bit(struct arena_hdr *arena, size_t i)
 {
-    size_t byte_i = i / 8;
-    size_t bit_i = i % 8;
+    arena->bmap[i / 8] |= 1 << (i % 8);
+}
 
-    arena->bmap[byte_i] = arena->bmap[byte_i] | (1 << bit_i);
+void arena_unset_bit(struct arena_hdr *arena, size_t i)
+{
+    arena->bmap[i/ 8] &= ~1 << (i % 8);
 }
 
 void pgframe_free(uintptr_t phys)
@@ -42,12 +44,7 @@ void pgframe_free(uintptr_t phys)
         if (!(phys > arena->start && (arena->start + arena->size) < phys))
             continue;
 
-        /* Physical address is in this arena */
-        int framei = (phys - arena->start) / PAGE_SIZE;
-        size_t index = framei / sizeof(*arena->bmap);
-        size_t bit_index = framei % (sizeof(*arena->bmap) * 8);
-
-        arena->bmap[index] = arena->bmap[index] & (~1 << bit_index);
+        arena_unset_bit(arena, (phys - arena->start) / PAGE_SIZE);
         break;
     }
 }
@@ -68,7 +65,7 @@ uintptr_t pgframe_alloc()
                 if ((1 << j) & arena->bmap[i])
                     continue;
 
-                arena->bmap[i] |= (1 << j);
+                arena_set_bit(arena, i * 8 + j);
                 return arena->start + PAGE_SIZE * ((i * sizeof(*arena->bmap)) + j);
             }
         }
