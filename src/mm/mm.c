@@ -12,13 +12,7 @@
 #include "util.h"
 #include "vmm.h"
 
-struct mboot_info {
-    int32_t total_size;
-    int32_t reserved;
-    struct multiboot_tag tags[];
-};
-
-static void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag)
+void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag)
 {
     struct multiboot_tag *curr = mboot->tags;
 
@@ -82,11 +76,7 @@ void mm_init(void *mboot_info_start)
 
     mm_print_mmap(mmap);
 
-    pgalloc_init(mmap);
-    /*
-    struct arena_hdr *init_arena = (struct arena_hdr *)INIT_ARENA_BASE;
-    pgframe_arena_init(init_arena, init_arena_phys, init_arena_size);
-    vmm_init(init_arena);
+    pgalloc_init(mboot_info_start);
+    vmm_init();
     kmalloc_init();
-    */
 }
