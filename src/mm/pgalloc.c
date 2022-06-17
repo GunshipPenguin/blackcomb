@@ -12,26 +12,26 @@
 
 #define ARENA_BASE 0xB0000000
 
-struct arena_hdr {
+struct arena {
     size_t size;
 
     /* Physical start address of this page frame allocation arena */
     uintptr_t start;
 
-    /* Virtual pointer to next struct arena_hdr */
-    struct arena_hdr *next;
+    /* Virtual pointer to next struct arena */
+    struct arena *next;
 
     uint32_t bmap[];
 };
 
-void arena_set_bit(struct arena_hdr *arena, size_t i)
+void arena_set_bit(struct arena *arena, size_t i)
 {
     arena->bmap[i / 8] |= 1 << (i % 8);
 }
 
-void arena_unset_bit(struct arena_hdr *arena, size_t i)
+void arena_unset_bit(struct arena *arena, size_t i)
 {
-    arena->bmap[i/ 8] &= ~1 << (i % 8);
+    arena->bmap[i / 8] &= ~1 << (i % 8);
 }
 
 void pgframe_free(uintptr_t phys)
@@ -39,7 +39,7 @@ void pgframe_free(uintptr_t phys)
     if (phys & 0xFFF)
         panic("attempting to free non-page-aligned region");
 
-    struct arena_hdr *arena = (struct arena_hdr *)ARENA_BASE;
+    struct arena *arena = (struct arena *)ARENA_BASE;
     while (arena != NULL) {
         if (!(phys > arena->start && (arena->start + arena->size) < phys))
             continue;
@@ -51,7 +51,7 @@ void pgframe_free(uintptr_t phys)
 
 uintptr_t pgframe_alloc()
 {
-    struct arena_hdr *arena = (struct arena_hdr *)ARENA_BASE;
+    struct arena *arena = (struct arena *)ARENA_BASE;
     while (arena != NULL) {
         for (size_t i = 0; i < arena->size; i++) {
             if (arena->bmap[i] == 0xFFFFFFFF)
@@ -81,34 +81,53 @@ void pgalloc_init(struct mboot_info *mboot)
     /*
      * Strap in...
      *
-     * This function is necessarily very complicated due to it being called
-     * early in the boot process to initialize a very core piece of
-     * infrastructure.
+     * This function initializes the physical memory allocator. It's therefore
+     * rather complicated due to having to work around the fact that absolutely
+     * no other MM infrastructure is setup when it's called.
      *
-     * TODO Document it here....
+     * The goal here is to go through all available regions of physical memory
+     * and set the page frame allocator to allocate memory from them. 
+     *
+     * To do this, we need to setup a struct arena for each region. We map each
+     * struct arena in the region of physical memory it corresponds to, using
+     * the first n free pages in the region to map it where n is the size of the
+     * struct arena + bitmap. We then mark all pages in the region taken up by
+     * the arena metadata as reserved so they're never allocated.
+     *
+     * Arguably this could be done with static data in the kernel binary, but
+     * would be wasteful on machines with a small amount of memory.
      */
 
-    static uint32_t tmp_pgtbl[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
-    memset(tmp_pgtbl, 0, sizeof(tmp_pgtbl));
-    pgdir_set_entry(PGDIR_NDX(ARENA_BASE), ((uintptr_t)&tmp_pgtbl - KERNEL_TEXT_BASE) | 0x3);
+    /* 
+     * This page table is used to map all the arena metadata, we need to alloc
+     * it statically here due to not yet having a page frame allocator.
+     */
+    static uint32_t arena_meta_pgtbl[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
+    memset(arena_meta_pgtbl, 0, sizeof(arena_meta_pgtbl));
+    pgdir_set_entry(PGDIR_NDX(ARENA_BASE), ((uintptr_t)&arena_meta_pgtbl - KERNEL_TEXT_BASE) | 0x3);
 
+    /*
+     * The multiboot2 information is mapped somewhere in physical memory
+     * (usually right after the kernel). We of course can't overwrite it with
+     * arena metadata while we're bootstrapping, so copy it into a VLA on the
+     * stack and use that instead. After this function returns, mboot should
+     * be assumed to be garbage.
+     */
     struct multiboot_tag_mmap *mmap_orig = mboot_find_tag(mboot, MULTIBOOT_TAG_TYPE_MMAP);
     uint8_t mmap_copy[mmap_orig->size];
     memcpy(mmap_copy, mmap_orig, sizeof(mmap_copy));
-    struct multiboot_tag_mmap *mmap = (struct multiboot_tag_mmap *) mmap_copy;
+    struct multiboot_tag_mmap *mmap = (struct multiboot_tag_mmap *)mmap_copy;
 
-    struct arena_hdr *curr_hdr = (struct arena_hdr *)ARENA_BASE;
-    uintptr_t curr_hdr_addr = ARENA_BASE;
-
+    struct arena *curr_arena = (struct arena *)ARENA_BASE;
+    uintptr_t curr_virt_page = ARENA_BASE;
     struct multiboot_mmap_entry *entry = mmap->entries;
-
     while ((uintptr_t)entry < (uintptr_t)mmap + mmap->size) {
 #define IN_KERNEL_MAPPING(x)                                                                       \
     (x >= (uintptr_t)&__kernel_start_phys && x < (uintptr_t)&__kernel_end_phys)
         if (entry->type != MULTIBOOT_MEMORY_AVAILABLE || entry->addr == 0)
             goto next;
 
-        size_t hdr_size = sizeof(struct arena_hdr) + (entry->len / PAGE_SIZE);
+        size_t hdr_size = sizeof(struct arena) + (entry->len / PAGE_SIZE);
         size_t pages_needed = ALIGNUP(hdr_size, PAGE_SIZE) / PAGE_SIZE;
 
         uintptr_t start = ALIGNUP(entry->addr, PAGE_SIZE);
@@ -123,38 +142,36 @@ void pgalloc_init(struct mboot_info *mboot)
                 continue; /* Overlaps kernel text in physical mem, skip this page */
 
             /* Page is usable, map it */
-            tmp_pgtbl[PGTBL_NDX(curr_hdr_addr)] = phys | 0x3;
+            arena_meta_pgtbl[PGTBL_NDX(curr_virt_page)] = phys | 0x3;
             pages_needed--;
-            curr_hdr_addr += PAGE_SIZE;
+            curr_virt_page += PAGE_SIZE;
         }
 
-        /* curr_hdr is mapped into memory and now accessible */
-        memset(curr_hdr, 0, hdr_size);
-        curr_hdr->size = entry->len;
-        curr_hdr->start = entry->addr;
+        /* curr_arena is mapped into memory and now accessible */
+        memset(curr_arena, 0, hdr_size);
+        curr_arena->size = entry->len;
+        curr_arena->start = entry->addr;
 
         /* Loop again and set as reserved any kernel / arena header pages */
         for (size_t pg = 0; pg < (end - start) / PAGE_SIZE; pg++) {
-            size_t phys = curr_hdr->start + (pg * PAGE_SIZE);
+            size_t phys = curr_arena->start + (pg * PAGE_SIZE);
 
             /* Reserve page if it corresponds to the kernel mapping */
             if (IN_KERNEL_MAPPING(phys))
-                arena_set_bit(curr_hdr, pg);
+                arena_set_bit(curr_arena, pg);
 
             /* Reserve page if it corresponds to any page used by the header */
             for (size_t i = 0; i < PGTBL_NENTRIES; i++) {
-                if (tmp_pgtbl[i] >> PAGE_SHIFT == phys)
-                    arena_set_bit(curr_hdr, pg);
+                if (arena_meta_pgtbl[i] >> PAGE_SHIFT == phys)
+                    arena_set_bit(curr_arena, pg);
             }
         }
 
+        printf("established a page allocation region at %p of size %d\n",
+                curr_arena->start, curr_arena->size);
 
-        uint32_t print_start = curr_hdr->start;
-        uint32_t print_end = curr_hdr->start + curr_hdr->size;
-        printf("established a page allocation region at %p of size %d\n", print_start, print_end); 
-
-        curr_hdr->next = (struct arena_hdr *)curr_hdr_addr;
-        curr_hdr = curr_hdr->next;
+        curr_arena->next = (struct arena *)curr_virt_page;
+        curr_arena = curr_arena->next;
 
     next:
         entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);

@@ -18,10 +18,11 @@ size_t strlen(const char *s)
     return len;
 }
 
-size_t strcpy(char *dest, const char *src)
+char *strcpy(char *dest, const char *src)
 {
     for (size_t i = 0; i < strlen(src); i++)
         dest[i] = src[i];
+    return dest;
 }
 
 void *memset(void *s, int c, size_t n)

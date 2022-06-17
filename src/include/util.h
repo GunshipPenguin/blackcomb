@@ -15,6 +15,7 @@
         _val & ~(_align - 1);                                                                      \
     })
 
+__attribute__((noreturn))
 void panic(char *s);
 
 #endif /* __UTIL_H */
