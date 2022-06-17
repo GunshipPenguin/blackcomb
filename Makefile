@@ -1,7 +1,7 @@
 CC=gcc
 AS=nasm
 
-CFLAGS=-m32 -I src/include -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
+CFLAGS=-Wall -m32 -I src/include -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
 LDFLAGS=-m32 -no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
 ASFLAGS =-f elf32
 
