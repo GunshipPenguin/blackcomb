@@ -28,14 +28,19 @@ struct arena {
     uint32_t bmap[];
 };
 
+bool arena_get_bit(struct arena *arena, size_t i)
+{
+    return !!(arena->bmap[i / 32] & (1 << (i % 32)));
+}
+
 void arena_set_bit(struct arena *arena, size_t i)
 {
-    arena->bmap[i / 8] |= 1 << (i % 8);
+    arena->bmap[i / 32] |= 1 << (i % 32);
 }
 
 void arena_unset_bit(struct arena *arena, size_t i)
 {
-    arena->bmap[i / 8] &= ~1 << (i % 8);
+    arena->bmap[i / 32] &= ~1 << (i % 32);
 }
 
 void pgframe_free(uintptr_t phys)
@@ -66,7 +71,7 @@ uintptr_t pgframe_alloc()
              * freestanding setup.
              */
             for (int j = 0; j < sizeof(*arena->bmap) * 8; j++) {
-                if ((1 << j) & arena->bmap[i])
+                if (arena_get_bit(arena, i * 8 + j))
                     continue;
 
                 arena_set_bit(arena, i * 8 + j);
