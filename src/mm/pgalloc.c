@@ -112,7 +112,8 @@ void pgalloc_init(struct mboot_info *mboot)
      */
     static uint32_t arena_meta_pgtbl[PGTBL_NENTRIES] __attribute__((aligned(PAGE_SIZE)));
     memset(arena_meta_pgtbl, 0, sizeof(arena_meta_pgtbl));
-    pgdir_set_entry(PGDIR_NDX(ARENA_BASE), ((uintptr_t)&arena_meta_pgtbl - KERNEL_TEXT_BASE) | 0x3);
+    pgdir_set_entry(PGDIR_NDX(ARENA_BASE),
+                    STATIC_DATA_VIRT_TO_PHYS((uintptr_t)&arena_meta_pgtbl) | 0x3);
 
     /*
      * The multiboot2 information is mapped somewhere in physical memory
@@ -165,14 +166,20 @@ void pgalloc_init(struct mboot_info *mboot)
             size_t phys = curr_arena->start + (pg * PAGE_SIZE);
 
             /* Reserve page if it corresponds to the kernel mapping */
-            if (IN_KERNEL_MAPPING(phys))
+            if (IN_KERNEL_MAPPING(phys)) {
                 arena_set_bit(curr_arena, pg);
+                continue;
+            }
 
             /* Reserve page if it corresponds to any page used by the header */
             for (size_t i = 0; i < PGTBL_NENTRIES; i++) {
-                if (arena_meta_pgtbl[i] >> PAGE_SHIFT == phys)
+                if (arena_meta_pgtbl[i] >> PAGE_SHIFT == phys) {
                     arena_set_bit(curr_arena, pg);
+                    goto next_reserv;
+                }
             }
+
+        next_reserv:;
         }
 
         printf("established a page allocation region at %p of size %d\n", curr_arena->start,
