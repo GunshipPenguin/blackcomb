@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "defs.h"
+#include "gdt.h"
 #include "kmalloc.h"
 #include "multiboot2.h"
 #include "pgalloc.h"
@@ -76,6 +77,7 @@ void mm_init(void *mboot_info_start)
 
     mm_print_mmap(mmap);
 
+    gdt_init();
     pgalloc_init(mboot_info_start);
     vmm_init();
     kmalloc_init();
