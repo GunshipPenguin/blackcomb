@@ -54,6 +54,7 @@ page_tables:
     resb PAGE_SIZE
 
 section .text.boot
+bits 32
 global _start
 _start:
     ; PML4 Entry - Lower
@@ -123,7 +124,7 @@ _start:
 
     jmp 0x08:LongMode             ; Load CS with 64 bit segment and flush the instruction cache
 
-[BITS 64]
+bits 64
 LongMode:
     mov ax, DATA_SEG
     mov ds, ax

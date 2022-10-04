@@ -2,23 +2,19 @@ extern exception_handler
 
 %macro isr_err_stub 1
 isr_stub_%+%1:
-    pushad
     cld
     push %1
-    call exception_handler
+;    call exception_handler
     add esp, 4
-    popad
     iret
 %endmacro
 
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-    pushad
     cld
     push %1
-    call exception_handler
+;    call exception_handler
     add esp, 4
-    popad
     iret
 %endmacro
 
@@ -68,6 +64,6 @@ global isr_stub_table
 isr_stub_table:
 %assign i 0
 %rep    40
-    dd isr_stub_%+i
+;    dd isr_stub_%+i
 %assign i i+1
 %endrep

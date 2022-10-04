@@ -1,9 +1,9 @@
 CC=gcc
 AS=nasm
 
-CFLAGS=-Wall -m32 -I src/include -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
-LDFLAGS=-m32 -no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
-ASFLAGS =-f elf32
+CFLAGS=-fno-pic -mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -nostartfiles -g
+LDFLAGS=-no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
+ASFLAGS =-f elf64
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
