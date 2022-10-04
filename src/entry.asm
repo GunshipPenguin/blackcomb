@@ -2,8 +2,12 @@ extern kernel_main
 extern __kernel_start_phys
 extern __kernel_end_phys
 
-%define KERNEL_TEXT_BASE 0xC0000000
 %define PAGE_SIZE 4096
+%define PAGE_PRESENT    (1 << 0)
+%define PAGE_WRITE      (1 << 1)
+
+%define CODE_SEG     0x0008
+%define DATA_SEG     0x0010
 
 section .multiboot
 align 64
@@ -17,116 +21,133 @@ header_start:
     dd 8
 header_end:
 
-; Small area for a bootstrap page table, just enough to map the kernel text and multiboot info
-; and call kernel_main, we'll replace this shortly
-section .bss
-align PAGE_SIZE
-boot_page_directory:
-resb PAGE_SIZE
-boot_page_table1:
-resb PAGE_SIZE
-boot_page_table2:
-resb PAGE_SIZE
+section .data.boot
+gdt:
+.null:
+    dq 0x0000000000000000             ; Null Descriptor - should be present.
 
-align 16
-stack_bottom:
-resb 16384
-stack_top:
+.code:
+    dq 0x00209A0000000000             ; 64-bit code descriptor (exec/read).
+    dq 0x0000920000000000             ; 64-bit data descriptor (read/write).
+
+ALIGN 4
+    dw 0                              ; Padding to make the "address of the GDT" field aligned on a 4-byte boundary
+
+.pointer:
+    dw $ - gdt - 1                    ; 16-bit Size (Limit) of GDT.
+    dd  gdt                           ; 32-bit Base Address of GDT. (CPU will zero extend to 64-bit)
+
+section .data.boot
+align PAGE_SIZE
+page_tables:
+.p4:
+    resb PAGE_SIZE
+.p3_upper:
+    resb PAGE_SIZE
+.p3_lower:
+    resb PAGE_SIZE
+.p2_upper:
+    resb PAGE_SIZE
+.p2_lower:
+    resb PAGE_SIZE
+.p1:
+    resb PAGE_SIZE
 
 section .text.boot
 global _start
 _start:
-    mov edi, boot_page_table1 - KERNEL_TEXT_BASE
-    mov esi, 0
-    mov ecx, 1023
+    ; PML4 Entry - Lower
+    lea eax, [page_tables.p3_lower]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p4], eax
 
-; Setup page table for kernel to map 0x00100000 to virtual address 0xC0100000
-map_kernel_loop:
-    cmp esi, __kernel_start_phys
-    jl kern_nextpage
+    ; PDPT Entry - Lower
+    lea eax, [page_tables.p2_lower]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p3_lower], eax
 
-    cmp esi, __kernel_end_phys
-    jge map_mboot_info
+    ; Page Directory Entry - Lower
+    lea eax, [page_tables.p1]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p2_lower], eax
 
-    mov edx, esi
-    or edx, 0x3
-    mov [edi], edx
+    ; 0xffffffff80000000:
+    ; Entry 511 in PML4
+    ; Entry 508 in PDPT
+    ; Entry 0 in Page Directory
 
-kern_nextpage:
-    add esi, PAGE_SIZE
-    add edi, 4
-    loop map_kernel_loop
+    ; PML4 Entry - Upper
+    lea eax, [page_tables.p3_upper]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p4 + (511 * 8)], eax
 
-; Setup page table for multiboot information to map [ebx] to 0xA0000000
-map_mboot_info:
-    mov eax, DWORD [ebx]                         ; eax = size of multiboot information
-    mov esi, ebx                                 ; esi = Current physical address
-    mov edi, boot_page_table2 - KERNEL_TEXT_BASE ; edi = address of current PTE
+    ; PDPT Entry - Upper
+    lea eax, [page_tables.p2_upper]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p3_upper + (510 * 8)], eax
 
-    ; Page align the physical address down, ebx is only guaranteed to be 8-byte aligned as per
-    ; the multiboot 2 spec
-    and edi, 0xFFFFF000
+    ; Page Directory Entry - Upper
+    lea eax, [page_tables.p1]
+    or eax, PAGE_PRESENT | PAGE_WRITE
+    mov [page_tables.p2_upper], eax
 
-    ; We need to map up to an extra 4096 bytes due to the rounding, so add 4096 to the size
-    add eax, PAGE_SIZE
+    lea edi, [page_tables.p1]
+    mov eax, PAGE_PRESENT | PAGE_WRITE
 
-map_mboot_loop:
-    ; eax = size remaining: Have we already mapped everything?
-    cmp eax, 0
-    jl mapping_done
-    sub eax, PAGE_SIZE
+   ; Build the Page Table.
+.loop_pg_tbl:
+    mov [edi], eax
+    add eax, 0x1000
+    add edi, 8
+    cmp eax, 0x200000                 ; If we did all 2MiB, end.
+    jb .loop_pg_tbl
 
-    ; No? Ok, map another page
-    mov edx, esi
-    or edx, 0x3 ; edx = physical address | 0x3 (read/write)
-    mov [edi], edx
+    ; Enter long mode.
+    mov eax, 10100000b                ; Set the PAE and PGE bit.
+    mov cr4, eax
 
-mb_nextpage:
-    add esi, PAGE_SIZE
-    add edi, 4
-    jmp map_mboot_loop
+    lea edx, [page_tables.p4]            ; Point CR3 at the PML4.
+    mov cr3, edx
 
-; Kernel / multiboot info mapping done, insert entries in page directories
-mapping_done:
-    ; Map VGA video memory to 0xC03FF000 via the last entry of the text page table
-    mov DWORD [(boot_page_table1 - KERNEL_TEXT_BASE) + (1023 * 4)], 0xB8003
+    mov ecx, 0xC0000080               ; Read from the EFER MSR.
+    rdmsr
 
-    ; Insert page directory entries
+    or eax, 0x00000100                ; Set the LME bit.
+    wrmsr
 
-    ; Identity map the kernel text so we can execute the next instruction when we enable paging
-    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
+    mov ebx, cr0                      ; Activate long mode -
+    or ebx, 0x80000001                ; - by enabling paging and protection simultaneously.
+    mov cr0, ebx
 
-    ; Map kernel text to 0xC0100000
-    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 768 * 4], boot_page_table1 - KERNEL_TEXT_BASE + 0x3
+    lgdt [gdt.pointer]                ; Load GDT.Pointer defined below.
 
-    ; Map multiboot information to 0xA0000000
-    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 640 * 4], boot_page_table2 - KERNEL_TEXT_BASE + 0x3
+    jmp 0x08:LongMode             ; Load CS with 64 bit segment and flush the instruction cache
 
-    ; Recursively map page tables/directory to the last 4M
-    mov DWORD [boot_page_directory - KERNEL_TEXT_BASE + 1023 * 4], boot_page_directory - KERNEL_TEXT_BASE + 0x3
+[BITS 64]
+LongMode:
+    mov ax, DATA_SEG
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
 
-    mov ecx, boot_page_directory - KERNEL_TEXT_BASE
-    mov cr3, ecx
+    ; Blank out the screen to a blue color.
+    mov edi, 0xB8000
+    mov rcx, 500                      ; Since we are clearing uint64_t over here, we put the count as Count/4.
+    mov rax, 0x1F201F201F201F20       ; Set the value to set the screen to: Blue background, white foreground, blank spaces.
+    rep stosq                         ; Clear the entire screen.
 
-    mov ecx, cr0
-    or ecx, 0x80010000
-    mov cr0, ecx
+    ; Display "Hello World!"
+    mov edi, 0x00b8000
 
-    lea ecx, [jump_to_main]
-    jmp ecx
+    mov rax, 0x1F6C1F6C1F651F48
+    mov [edi],rax
 
-section .text
-jump_to_main:
-    ; Unmap the identity map, we don't need it anymore
-    mov DWORD [boot_page_directory + 0], 0
-    mov ecx, cr3
-    mov cr3, ecx
+    mov rax, 0x1F6F1F571F201F6F
+    mov [edi + 8], rax
 
-    mov esp, stack_top
+    mov rax, 0x1F211F641F6C1F72
+    mov [edi + 16], rax
 
-    ; Convert multiboot2 info physical address to virtual address
-    and ebx, 0xFFF
-    add ebx, 0xA0000000
-    push ebx
-
-    call kernel_main
+    jmp kernel_main
