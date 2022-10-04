@@ -1,19 +1,33 @@
 global flush_gdt
 
-; reload_gdt(uint32_t code, uint32_t data)
+; rdi = uint32 code
+; rsi = uint32 data
+bits 64
 flush_gdt:
-    mov eax, [esp + 8] ; Data segment selector
+    push rbp
+    mov rbp, rsp
 
-    mov ds, eax
-    mov es, eax
-    mov ss, eax
-    mov gs, eax
-    mov fs, eax
+    push qword rsi
+    push qword rbp
 
-    push WORD [esp + 4] ; Code segment selector
-    push longjmp_target
-    jmp far [esp + 6]
+    pushf
+    pop rax
+    ; Mask TF, NT & RF, all of which have effects on iret we don't want
+    and rax, 0b1111111111111111111111111111111111111111111111101011111011111111
+    push rax
+    popf
+
+    pushf
+    push qword rdi
+    push qword longjmp_target
+    iretq
 
 longjmp_target:
-    sub esp, 6
+    mov ds, rsi
+    mov es, rsi
+    mov ss, rsi
+    mov gs, rsi
+    mov fs, rsi
+
+    leave
     ret

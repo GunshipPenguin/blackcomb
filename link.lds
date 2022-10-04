@@ -3,7 +3,7 @@ ENTRY(_start)
 PAGE_SIZE = 0x1000;
 
 PHYS = 0x100000;
-KERNEL_TEXT_BASE = 0xC0000000;
+KERNEL_TEXT_BASE = 0xffffffff80000000;
 
 SECTIONS
 {
@@ -16,6 +16,10 @@ SECTIONS
 
     .text.boot : {
         *(.text.boot);
+    }
+
+    .data.boot : {
+        *(.data.boot);
     }
 
     . += KERNEL_TEXT_BASE;

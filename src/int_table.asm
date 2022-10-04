@@ -1,25 +1,51 @@
-extern exception_handler
+extern isr_main_entry
+
+isr_common:
+    push rdi
+    push rsi
+    push rdx
+    push rcx
+    push rax
+    push r8
+    push r9
+    push r10
+    push r11
+
+    mov rdi, rsp
+    call isr_main_entry
+
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rax
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+
+    add esp, 8 ; IRQ info field
+    iretq
 
 %macro isr_err_stub 1
 isr_stub_%+%1:
-    pushad
-    cld
-    push %1
-    call exception_handler
-    add esp, 4
-    popad
-    iret
+    ; Store interrupt number in high 4 bytes of error code
+    mov dword [rsp + 4], %1
+    jmp isr_common
 %endmacro
 
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-    pushad
-    cld
-    push %1
-    call exception_handler
-    add esp, 4
-    popad
-    iret
+    push qword 0
+    mov dword [rsp + 4], %1
+    jmp isr_common
+%endmacro
+
+%macro isr_irq_stub 1
+isr_stub_%+%1:
+    push qword 0
+    mov dword [rsp + 4], %1
+    jmp isr_common
 %endmacro
 
 isr_no_err_stub 0
@@ -54,20 +80,20 @@ isr_no_err_stub 28
 isr_no_err_stub 29
 isr_err_stub    30
 isr_no_err_stub 31
-isr_no_err_stub 32
-isr_no_err_stub 33
-isr_no_err_stub 34
-isr_no_err_stub 35
-isr_no_err_stub 36
-isr_no_err_stub 37
-isr_no_err_stub 38
-isr_no_err_stub 39
-isr_no_err_stub 40
+isr_irq_stub    32
+isr_irq_stub    33
+isr_irq_stub    34
+isr_irq_stub    35
+isr_irq_stub    36
+isr_irq_stub    37
+isr_irq_stub    38
+isr_irq_stub    39
+isr_irq_stub    40
 
 global isr_stub_table
 isr_stub_table:
 %assign i 0
 %rep    40
-    dd isr_stub_%+i
+    dq isr_stub_%+i
 %assign i i+1
 %endrep

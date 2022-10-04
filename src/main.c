@@ -7,7 +7,7 @@
 #include "vgaterm.h"
 #include "vmm.h"
 
-int kernel_main(uintptr_t mboot_info, uint32_t mboot_size)
+int kernel_main(uintptr_t mboot_info)
 {
     vgaterm_clear();
     vgaterm_setcolor(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
@@ -15,6 +15,8 @@ int kernel_main(uintptr_t mboot_info, uint32_t mboot_size)
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     mm_init((void *)mboot_info);
+    gdt_init();
+
     idt_init();
 
     char *buf = kmalloc(1024);

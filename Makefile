@@ -1,9 +1,9 @@
 CC=gcc
 AS=nasm
 
-CFLAGS=-Wall -m32 -I src/include -fno-pic -c -ffreestanding -nostdlib -nostartfiles -g
-LDFLAGS=-m32 -no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
-ASFLAGS =-f elf32
+CFLAGS=-fno-pic -mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -nostartfiles -g
+LDFLAGS=-no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
+ASFLAGS =-f elf64
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
@@ -16,7 +16,7 @@ OBJS= $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
 all: kern.iso
 
 run: kern.iso
-	qemu-system-i386 -monitor stdio -cdrom kern.iso
+	qemu-system-x86_64 -monitor stdio -cdrom kern.iso
 
 format:
 	clang-format -i $(C_SRCS)

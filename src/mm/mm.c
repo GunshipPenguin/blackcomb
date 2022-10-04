@@ -4,10 +4,9 @@
 #include <stdint.h>
 
 #include "defs.h"
-#include "gdt.h"
 #include "kmalloc.h"
 #include "multiboot2.h"
-#include "pgalloc.h"
+#include "pmm.h"
 #include "printf.h"
 #include "string.h"
 #include "util.h"
@@ -77,8 +76,7 @@ void mm_init(void *mboot_info_start)
 
     mm_print_mmap(mmap);
 
-    gdt_init();
-    pgalloc_init(mboot_info_start);
-    vmm_init();
-    kmalloc_init();
+    /* vmm_init does not require a functioning PMM, but pmm_init requires an initialized vmm */
+    vmm_init(mmap);
+    pmm_init(mmap);
 }
