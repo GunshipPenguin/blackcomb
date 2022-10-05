@@ -1,4 +1,3 @@
-#include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
 #include "mm.h"
@@ -7,7 +6,7 @@
 #include "vgaterm.h"
 #include "vmm.h"
 
-int kernel_main(uintptr_t mboot_info, uint32_t mboot_size)
+int kernel_main(uintptr_t mboot_info)
 {
     vgaterm_clear();
     vgaterm_setcolor(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);

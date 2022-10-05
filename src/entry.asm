@@ -37,7 +37,6 @@ ALIGN 4
     dw $ - gdt - 1                    ; 16-bit Size (Limit) of GDT.
     dd  gdt                           ; 32-bit Base Address of GDT. (CPU will zero extend to 64-bit)
 
-section .data.boot
 align PAGE_SIZE
 page_tables:
 .p4:
@@ -52,6 +51,11 @@ page_tables:
     resb PAGE_SIZE
 .p1:
     resb PAGE_SIZE
+
+align 64
+stack_bottom:
+resb 16384
+stack_top:
 
 section .text.boot
 bits 32
@@ -74,7 +78,7 @@ _start:
 
     ; 0xffffffff80000000:
     ; Entry 511 in PML4
-    ; Entry 508 in PDPT
+    ; Entry 510 in PDPT
     ; Entry 0 in Page Directory
 
     ; PML4 Entry - Upper
@@ -116,9 +120,9 @@ _start:
     or eax, 0x00000100                ; Set the LME bit.
     wrmsr
 
-    mov ebx, cr0                      ; Activate long mode -
-    or ebx, 0x80000001                ; - by enabling paging and protection simultaneously.
-    mov cr0, ebx
+    mov ecx, cr0                      ; Activate long mode -
+    or ecx, 0x80000001                ; - by enabling paging and protection simultaneously.
+    mov cr0, ecx
 
     lgdt [gdt.pointer]                ; Load GDT.Pointer defined below.
 
@@ -151,4 +155,6 @@ LongMode:
     mov rax, 0x1F211F641F6C1F72
     mov [edi + 16], rax
 
-    jmp kernel_main
+    mov rsp, stack_top
+    mov rdi, rbx
+    call kernel_main

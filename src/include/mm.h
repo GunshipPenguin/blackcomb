@@ -14,4 +14,6 @@ struct mboot_info {
 void mm_init(void *mboot_info_start);
 void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag);
 
+typedef uint64_t pte_t;
+
 #endif
