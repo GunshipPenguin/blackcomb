@@ -32,7 +32,7 @@ void region_unset_bit(struct mmap_region *region, size_t i)
     region->start[i / sizeof(region->start)] &= ~1 << (i % sizeof(region->start));
 }
 
-static void copy_regions(struct multiboot_tag_mmap *mmap)
+void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
 {
     struct multiboot_mmap_entry *entry = mmap->entries;
     size_t i = 0;
@@ -65,16 +65,17 @@ void *find_free_page(struct mmap_region *region)
     return NULL;
 }
 
-void init_arenas_low()
+void pmm_init_generic(uint64_t cutoff)
 {
     for (size_t i = 0; i < n_regions; i++) {
-        if (regions[i].start > BOOT_IDENTITY_MAP_LIMIT)
+        /* 
+         * We may assume here that no region straddles the cutoff given the
+         * region splitting logic in pmm_set_mmap.
+         */
+        if (regions[i].start > cutoff)
             break;
 
         size_t len = regions[i].pages * PAGE_SIZE;
-
-        if (len > BOOT_IDENTITY_MAP_LIMIT)
-            len = BOOT_IDENTITY_MAP_LIMIT;
 
         size_t bmap_size = ((len / PAGE_SIZE) / 8);
         memset(regions[i].start, 0, bmap_size);
@@ -86,6 +87,16 @@ void init_arenas_low()
         for (int j = 0; j < ALIGNUP(bmap_size, PAGE_SIZE); j++)
             region_set_bit(&regions[i], j);
     }
+}
+
+void pmm_init_low()
+{
+    pmm_init_generic(BOOT_IDENTITY_MAP_LIMIT);
+}
+
+void pmm_init_high()
+{
+    pmm_init_generic(0xFFFFFFFFFFFFFFFF);
 }
 
 void *pmm_alloc_low()
@@ -100,10 +111,4 @@ void *pmm_alloc_low()
     }
 
     return addr;
-}
-
-void pmm_init_low(struct multiboot_tag_mmap *mmap)
-{
-    copy_regions(mmap);
-    init_arenas_low();
 }
