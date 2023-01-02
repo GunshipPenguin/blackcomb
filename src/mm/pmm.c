@@ -6,7 +6,7 @@
 #include "string.h"
 #include "util.h"
 
-#define BOOT_IDENTITY_MAP_LIMIT ((void *)0x200000)
+#define BOOT_IDENTITY_MAP_LIMIT 0x200000
 #define MAX_REGIONS 64
 
 struct mmap_region {
@@ -52,27 +52,27 @@ void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
     n_regions = i;
 }
 
-void *find_free_page(struct mmap_region *region)
+uint64_t find_free_page(struct mmap_region *region)
 {
     for (size_t i = 0; i < region->pages; i++) {
         if (region_get_bit(region, i))
             continue;
 
         region_set_bit(region, i);
-        return region->start + i * PAGE_SIZE;
+        return (uint64_t)region->start + i * PAGE_SIZE;
     }
 
-    return NULL;
+    return 0;
 }
 
 void pmm_init_generic(uint64_t cutoff)
 {
     for (size_t i = 0; i < n_regions; i++) {
-        /* 
+        /*
          * We may assume here that no region straddles the cutoff given the
          * region splitting logic in pmm_set_mmap.
          */
-        if (regions[i].start > cutoff)
+        if ((uint64_t)regions[i].start > cutoff)
             break;
 
         size_t len = regions[i].pages * PAGE_SIZE;
@@ -99,11 +99,11 @@ void pmm_init_high()
     pmm_init_generic(0xFFFFFFFFFFFFFFFF);
 }
 
-void *pmm_alloc_low()
+uint64_t pmm_alloc_low()
 {
-    void *addr = NULL;
+    uint64_t addr = 0;
     for (size_t i = 0; i < n_regions; i++) {
-        if (regions[i].start > BOOT_IDENTITY_MAP_LIMIT)
+        if ((uint64_t)regions[i].start > BOOT_IDENTITY_MAP_LIMIT)
             break;
 
         if ((addr = find_free_page(&regions[i])) != 0)
@@ -111,4 +111,19 @@ void *pmm_alloc_low()
     }
 
     return addr;
+}
+
+void pmm_free(uint64_t phys)
+{
+    if (phys & 0xFFF)
+        panic("attempting to free non-paged-aligned region");
+
+    for (size_t i = 0; i < n_regions; i++) {
+        struct mmap_region *region = &regions[i];
+        if (!(phys > (uint64_t)region->start &&
+              ((uint64_t)region->start + (region->pages * PAGE_SIZE)) < phys))
+            continue;
+
+        region_unset_bit(region, (phys - (uint64_t)region->start) / PAGE_SIZE);
+    }
 }
