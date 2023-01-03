@@ -16,7 +16,7 @@ OBJS= $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
 all: kern.iso
 
 run: kern.iso
-	qemu-system-i386 -monitor stdio -cdrom kern.iso
+	qemu-system-x86_64 -monitor stdio -cdrom kern.iso
 
 format:
 	clang-format -i $(C_SRCS)

@@ -83,10 +83,4 @@ void mm_init(void *mboot_info_start)
 
     /* High PMM initialization depends on VMM being setup */
     pmm_init_high(mmap);
-
-    printf("%p\n", pmm_alloc_low());
-    printf("%p\n", pmm_alloc_low());
-    printf("%p\n", pmm_alloc_low());
-    printf("%p\n", pmm_alloc_low());
-    printf("%p\n", pmm_alloc_low());
 }
