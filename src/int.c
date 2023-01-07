@@ -37,7 +37,7 @@ struct isr_ctx {
     uint64_t rsi;
     uint64_t rdi;
 
-	/* Error code/interrupt number for exceptions */
+    /* Error code/interrupt number for exceptions */
     uint64_t info;
 
     /* Interrupt stack frame */

@@ -76,11 +76,7 @@ void mm_init(void *mboot_info_start)
 
     mm_print_mmap(mmap);
 
-    pmm_set_mmap(mmap);
-
-    pmm_init_low(mmap);
+    /* vmm_init does not require a functioning PMM, but pmm_init requires an initialized vmm */
     vmm_init(mmap);
-
-    /* High PMM initialization depends on VMM being setup */
-    pmm_init_high(mmap);
+    pmm_init(mmap);
 }

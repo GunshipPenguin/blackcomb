@@ -1,15 +1,19 @@
 #include "pmm.h"
 
+#include <limits.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "defs.h"
 #include "string.h"
 #include "util.h"
+#include "vmm.h"
 
 #define BOOT_IDENTITY_MAP_LIMIT 0x200000
 #define MAX_REGIONS 64
 
 struct mmap_region {
+    bool initialized;
     char *start;
     size_t pages;
 };
@@ -24,7 +28,8 @@ bool region_get_bit(struct mmap_region *region, size_t i)
 
 void region_set_bit(struct mmap_region *region, size_t i)
 {
-    region->start[i / sizeof(region->start)] |= 1 << (i % sizeof(region->start));
+    char *start = P_TO_V(char, region->start);
+    start[i / sizeof(start)] |= 1 << (i % sizeof(start));
 }
 
 void region_unset_bit(struct mmap_region *region, size_t i)
@@ -65,15 +70,11 @@ uint64_t find_free_page(struct mmap_region *region)
     return 0;
 }
 
-void pmm_init_generic(uint64_t cutoff)
+void pmm_init_regions()
 {
     for (size_t i = 0; i < n_regions; i++) {
-        /*
-         * We may assume here that no region straddles the cutoff given the
-         * region splitting logic in pmm_set_mmap.
-         */
-        if ((uint64_t)regions[i].start > cutoff)
-            break;
+        if (regions[i].initialized)
+            continue;
 
         size_t len = regions[i].pages * PAGE_SIZE;
 
@@ -86,25 +87,23 @@ void pmm_init_generic(uint64_t cutoff)
          */
         for (int j = 0; j < ALIGNUP(bmap_size, PAGE_SIZE); j++)
             region_set_bit(&regions[i], j);
+
+        regions[i].initialized = true;
     }
 }
 
-void pmm_init_low()
+void pmm_init(struct multiboot_tag_mmap *mmap)
 {
-    pmm_init_generic(BOOT_IDENTITY_MAP_LIMIT);
+    pmm_set_mmap(mmap);
+    pmm_init_regions();
 }
 
-void pmm_init_high()
-{
-    pmm_init_generic(0xFFFFFFFFFFFFFFFF);
-}
-
-uint64_t pmm_alloc_low()
+uint64_t pmm_alloc()
 {
     uint64_t addr = 0;
     for (size_t i = 0; i < n_regions; i++) {
-        if ((uint64_t)regions[i].start > BOOT_IDENTITY_MAP_LIMIT)
-            break;
+        if (!regions[i].initialized)
+            continue;
 
         if ((addr = find_free_page(&regions[i])) != 0)
             break;

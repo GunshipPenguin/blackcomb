@@ -6,14 +6,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-void pmm_set_mmap(struct multiboot_tag_mmap *mmap);
-
-uint64_t pmm_alloc_low();
-uint64_t pmm_alloc_high();
-
-void pmm_init_low();
-void pmm_init_high();
-
+uint64_t pmm_alloc();
 void pmm_free(uint64_t phys);
+
+void pmm_init();
 
 #endif /* __ARENA_H */

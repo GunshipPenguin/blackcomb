@@ -11,12 +11,6 @@
 #define P2_NDX(x) ((x >> 21) & 0x1FF)
 #define P1_NDX(x) ((x >> 12) & 0x1FF)
 
-#define KERNEL_TEXT_BASE 0xffffffff80000000
-#define V_TO_P_STATIC(x) (((uint64_t)(x)) - KERNEL_TEXT_BASE)
-
-#define PHYS_MAPPING_START 0xffff888000000000
-#define P_TO_V(type, x) ((type *)(PHYS_MAPPING_START + ((uint64_t)x)));
-
 #define PAGE_PRESENT (1 << 0)
 #define PAGE_WRITE (1 << 1)
 #define PAGE_SIZE_FLAG (1 << 7)
@@ -164,21 +158,21 @@ void vmm_map_page(uintptr_t virt, uintptr_t phys)
 
     if (p4_get_entry(p4_i) == 0) {
         /* No p3 allocated here, get a free physical page */
-        uintptr_t new_p3 = pmm_alloc_low();
+        uintptr_t new_p3 = pmm_alloc();
         uint64_t entry = new_p3 | PAGE_PRESENT | PAGE_WRITE;
         p4_set_entry(p4_i, entry);
     }
 
     if (p3_get_entry(p4_i, p3_i) == 0) {
         /* No p2 allocated here, get a free physical page */
-        uintptr_t new_p2 = pmm_alloc_low();
+        uintptr_t new_p2 = pmm_alloc();
         uint64_t entry = new_p2 | PAGE_PRESENT | PAGE_WRITE;
         p3_set_entry(p4_i, p3_i, entry);
     }
 
     if (p2_get_entry(p4_i, p3_i, p2_i) == 0) {
         /* No p1 allocated here, get a free physical page */
-        uintptr_t new_p1 = pmm_alloc_low();
+        uintptr_t new_p1 = pmm_alloc();
         uint64_t entry = new_p1 | PAGE_PRESENT | PAGE_WRITE;
         p2_set_entry(p4_i, p3_i, p2_i, entry);
     }
@@ -238,7 +232,7 @@ void *sbrk(intptr_t inc)
         uint64_t new_map_end = ALIGNUP(curr_brk + inc, PAGE_SIZE);
 
         for (uint64_t addr = new_map_start; addr < new_map_end; addr += PAGE_SIZE) {
-            uint64_t frame = pmm_alloc_low();
+            uint64_t frame = pmm_alloc();
             vmm_map_page(addr, frame);
         }
 
