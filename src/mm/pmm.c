@@ -13,7 +13,6 @@
 #define MAX_REGIONS 64
 
 struct mmap_region {
-    bool initialized;
     char *start;
     size_t pages;
 };
@@ -73,9 +72,6 @@ uint64_t find_free_page(struct mmap_region *region)
 void pmm_init_regions()
 {
     for (size_t i = 0; i < n_regions; i++) {
-        if (regions[i].initialized)
-            continue;
-
         size_t len = regions[i].pages * PAGE_SIZE;
 
         size_t bmap_size = ((len / PAGE_SIZE) / 8);
@@ -87,8 +83,6 @@ void pmm_init_regions()
          */
         for (int j = 0; j < ALIGNUP(bmap_size, PAGE_SIZE); j++)
             region_set_bit(&regions[i], j);
-
-        regions[i].initialized = true;
     }
 }
 
@@ -102,9 +96,6 @@ uint64_t pmm_alloc()
 {
     uint64_t addr = 0;
     for (size_t i = 0; i < n_regions; i++) {
-        if (!regions[i].initialized)
-            continue;
-
         if ((addr = find_free_page(&regions[i])) != 0)
             break;
     }
