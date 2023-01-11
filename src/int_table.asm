@@ -11,7 +11,7 @@ isr_common:
     push r10
     push r11
 
-	mov rdi, rsp
+    mov rdi, rsp
     call isr_main_entry
 
     pop rdi
@@ -36,14 +36,16 @@ isr_stub_%+%1:
 
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-    push qword 0 ; Consistency with error version
+    push qword 0
+    mov dword [rsp + 4], %1
     jmp isr_common
 %endmacro
 
 %macro isr_irq_stub 1
 isr_stub_%+%1:
-	push qword %1
-	jmp isr_common
+    push qword 0
+    mov dword [rsp + 4], %1
+    jmp isr_common
 %endmacro
 
 isr_no_err_stub 0

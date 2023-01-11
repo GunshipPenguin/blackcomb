@@ -1,3 +1,4 @@
+#include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
 #include "mm.h"
@@ -14,6 +15,8 @@ int kernel_main(uintptr_t mboot_info)
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     mm_init((void *)mboot_info);
+    gdt_init();
+
     idt_init();
 
     char *buf = kmalloc(1024);
