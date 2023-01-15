@@ -7,6 +7,9 @@
 #include "vgaterm.h"
 #include "vmm.h"
 
+void syscall_enable();
+void do_sysret();
+
 int kernel_main(uintptr_t mboot_info)
 {
     vgaterm_clear();
@@ -23,6 +26,9 @@ int kernel_main(uintptr_t mboot_info)
     printf("kmalloc'd a region of size 1024 at %p\n", buf);
     strcpy(buf, "Hello World!");
     printf("This string is in a kmalloc'd region -> \"%s\"\n", buf);
+
+    syscall_enable();
+    do_sysret();
 
     for (;;) {
     }

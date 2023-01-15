@@ -13,6 +13,7 @@
 
 #define PAGE_PRESENT (1 << 0)
 #define PAGE_WRITE (1 << 1)
+#define PAGE_USER (1 << 2)
 #define PAGE_SIZE_FLAG (1 << 7)
 
 #define BRK_START 0x90000000
@@ -35,7 +36,7 @@ uint64_t kernel_p3_physmem[512] __aligned4k;
 
 void vmm_setup_phys_mapping(uint64_t physmem_size)
 {
-#define ENTRY(x) (((uint64_t)x) | (PAGE_PRESENT | PAGE_WRITE))
+#define ENTRY(x) (((uint64_t)x) | (PAGE_PRESENT | PAGE_WRITE | PAGE_USER))
 
     /* Identity map first 2 MiB */
     kernel_p4[0] = ENTRY(V_TO_P_STATIC(&kernel_p3_lower[0]));
