@@ -89,11 +89,19 @@ isr_irq_stub    37
 isr_irq_stub    38
 isr_irq_stub    39
 isr_irq_stub    40
+isr_irq_stub    41
+isr_irq_stub    42
+isr_irq_stub    43
+isr_irq_stub    44
+isr_irq_stub    45
+isr_irq_stub    46
+isr_irq_stub    47
+isr_irq_stub    48
 
 global isr_stub_table
 isr_stub_table:
 %assign i 0
-%rep    40
+%rep    48
     dq isr_stub_%+i
 %assign i i+1
 %endrep

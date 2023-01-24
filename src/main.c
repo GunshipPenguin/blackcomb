@@ -1,3 +1,4 @@
+#include "ata.h"
 #include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
@@ -6,6 +7,7 @@
 #include "string.h"
 #include "vgaterm.h"
 #include "vmm.h"
+#include "ext2.h"
 
 int kernel_main(uintptr_t mboot_info)
 {
@@ -23,6 +25,8 @@ int kernel_main(uintptr_t mboot_info)
     printf("kmalloc'd a region of size 1024 at %p\n", buf);
     strcpy(buf, "Hello World!");
     printf("This string is in a kmalloc'd region -> \"%s\"\n", buf);
+
+    ext2_read_file("/etc/passwd", NULL, 0);
 
     for (;;) {
     }

@@ -1,3 +1,5 @@
+#include "io.h"
+
 #include "printf.h"
 #include "vgaterm.h"
 #include <stdint.h>
@@ -66,18 +68,6 @@ struct idtr {
 __attribute__((aligned(0x10))) static struct idt_entry idt[IDT_MAX_DESCRIPTORS];
 static int vectors[IDT_MAX_DESCRIPTORS];
 extern void *isr_stub_table[];
-
-static void outb(uint16_t port, uint8_t val)
-{
-    asm volatile("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port)
-{
-    uint8_t ret;
-    asm volatile("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
 
 static inline void io_wait(void)
 {
@@ -151,7 +141,7 @@ void idt_init()
     idtr.base = (uint64_t)&idt[0];
     idtr.limit = (uint16_t)sizeof(struct idt_entry) * IDT_MAX_DESCRIPTORS - 1;
 
-    for (uint8_t vector = 0; vector < 40; vector++) {
+    for (uint8_t vector = 0; vector < 48; vector++) {
         idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
         vectors[vector] = 1;
     }
