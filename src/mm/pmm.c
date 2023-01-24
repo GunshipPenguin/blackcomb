@@ -5,12 +5,20 @@
 #include <stdint.h>
 
 #include "defs.h"
+#include "multiboot2.h"
 #include "string.h"
 #include "util.h"
 #include "vmm.h"
 
 #define BOOT_IDENTITY_MAP_LIMIT 0x200000
 #define MAX_REGIONS 64
+#define BITS(x) ((x)*8)
+
+struct mboot_info {
+    int32_t total_size;
+    int32_t reserved;
+    struct multiboot_tag tags[];
+};
 
 struct mmap_region {
     char *start;
@@ -20,36 +28,95 @@ struct mmap_region {
 size_t n_regions = 0;
 struct mmap_region regions[MAX_REGIONS];
 
+static void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag)
+{
+    struct multiboot_tag *curr = mboot->tags;
+
+    while (1) {
+        if (curr->type == tag)
+            break;
+        else if (curr->type == MULTIBOOT_TAG_TYPE_END)
+            break;
+
+        uintptr_t next = ALIGNUP((uintptr_t)curr + curr->size, 8);
+        curr = (struct multiboot_tag *)next;
+    }
+
+    if (curr->type == MULTIBOOT_TAG_TYPE_END)
+        return NULL;
+
+    return (struct multiboot_tag_mmap *)curr;
+}
+
 bool region_get_bit(struct mmap_region *region, size_t i)
 {
-    return !!(region->start[i / sizeof(region->start)] & (1 << (i % sizeof(region->start))));
+    char *start = P_TO_V(char, region->start);
+    return !!(start[i / BITS(sizeof(*start))] & (1 << (i % BITS(sizeof(*start)))));
 }
 
 void region_set_bit(struct mmap_region *region, size_t i)
 {
     char *start = P_TO_V(char, region->start);
-    start[i / sizeof(start)] |= 1 << (i % sizeof(start));
+    start[i / BITS(sizeof(*start))] |= 1 << (i % BITS(sizeof(*start)));
 }
 
 void region_unset_bit(struct mmap_region *region, size_t i)
 {
-    region->start[i / sizeof(region->start)] &= ~1 << (i % sizeof(region->start));
+    char *start = P_TO_V(char, region->start);
+    start[i / BITS(sizeof(*start))] &= ~1 << (i % BITS(sizeof(*start)));
 }
 
 void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
 {
+#define OVERLAPS_KERNEL(x)                                                                         \
+    (((x) >= (uint64_t)&__kernel_start_phys) && ((x) < (uint64_t)&__kernel_end_phys))
+
     struct multiboot_mmap_entry *entry = mmap->entries;
     size_t i = 0;
 
     memset(regions, 0, sizeof(regions));
 
     while ((uintptr_t)entry < (uintptr_t)mmap + mmap->size) {
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            regions[i].start = (char *)entry->addr;
-            regions[i].pages = entry->len / PAGE_SIZE;
-            i++;
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            goto next;
+
+        uint64_t start = entry->addr;
+        size_t end = start + entry->len;
+
+        /*
+         * If this region overlaps the kernel code/data, poke holes
+         * as needed so we aren't overwriting kernel code.
+         *
+         * Three possibilities:
+         *
+         * |----region----|
+         *       |-------kernel-------|
+         *
+         *        |------region------|
+         * |-----------kernel--------------|
+         *
+         *
+         *          |------region-------|
+         * |------kernel-------|
+         */
+
+        if (OVERLAPS_KERNEL(start)) {
+            start = (uint64_t)&__kernel_end_phys;
+            if (start >= end) /* Implies total overlap */
+                goto next;
         }
 
+        if (OVERLAPS_KERNEL(end)) {
+            end = (uint64_t)&__kernel_start_phys;
+            if (start >= end) /* Implies total overlap */
+                goto next;
+        }
+
+        regions[i].start = (char *)start;
+        regions[i].pages = (end - start) / PAGE_SIZE;
+        i++;
+
+    next:
         entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
     }
 
@@ -72,22 +139,27 @@ uint64_t find_free_page(struct mmap_region *region)
 void pmm_init_regions()
 {
     for (size_t i = 0; i < n_regions; i++) {
-        size_t len = regions[i].pages * PAGE_SIZE;
-
-        size_t bmap_size = ((len / PAGE_SIZE) / 8);
-        memset(regions[i].start, 0, bmap_size);
+        size_t bmap_size = (regions[i].pages + 8 - 1) / 8;
+        char *start = P_TO_V(char, regions[i].start);
+        memset(start, 0, bmap_size);
 
         /*
          * Set bits corresponding to the bitmap itself so pages containing the bitmap are
          * never returned to fulfill an allocation request.
          */
-        for (int j = 0; j < ALIGNUP(bmap_size, PAGE_SIZE); j++)
+        for (int j = 0; j < DIV_CEIL(bmap_size, PAGE_SIZE); j++)
             region_set_bit(&regions[i], j);
     }
 }
 
-void pmm_init(struct multiboot_tag_mmap *mmap)
+void pmm_init(void *mboot_info_start)
 {
+    struct mboot_info *mboot = mboot_info_start;
+    struct multiboot_tag_mmap *mmap = mboot_find_tag(mboot, MULTIBOOT_TAG_TYPE_MMAP);
+
+    if (mmap == NULL)
+        panic("Could not find multiboot2 mmap tag");
+
     pmm_set_mmap(mmap);
     pmm_init_regions();
 }
@@ -99,6 +171,9 @@ uint64_t pmm_alloc()
         if ((addr = find_free_page(&regions[i])) != 0)
             break;
     }
+
+    void *virt = P_TO_V(void, addr);
+    memset(virt, 0, PAGE_SIZE);
 
     return addr;
 }

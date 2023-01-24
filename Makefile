@@ -3,7 +3,7 @@ AS=nasm
 
 CFLAGS=-mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -g
 LDFLAGS=-ffreestanding -nostdlib -T link.lds -g
-ASFLAGS =-f elf64
+ASFLAGS =-f elf64 -I src/include
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 
@@ -16,7 +16,7 @@ OBJS= $(patsubst %.asm,%.o,$(patsubst %.c,%.o,$(SRCS)))
 all: kern.iso
 
 run: kern.iso
-	qemu-system-x86_64 -monitor stdio -cdrom kern.iso
+	qemu-system-x86_64 -monitor stdio -cdrom kern.iso -hda hdd.img
 
 format:
 	clang-format -i $(C_SRCS)

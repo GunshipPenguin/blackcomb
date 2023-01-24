@@ -24,6 +24,10 @@ SECTIONS
 
     . += KERNEL_TEXT_BASE;
 
+    .kernelstack ALIGN(PAGE_SIZE) : AT(ADDR(.kernelstack) - KERNEL_TEXT_BASE) {
+        *(.kernelstack);
+    }
+
     .text ALIGN(PAGE_SIZE) : AT(ADDR(.text) - KERNEL_TEXT_BASE) {
         *(.text);
     }

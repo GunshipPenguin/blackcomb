@@ -7,14 +7,17 @@
 #include "string.h"
 #include "util.h"
 
-void flush_gdt(uint32_t code, uint32_t data);
+void flush_gdt(uint32_t code, uint32_t data, uint32_t tss);
 
 struct gdtr {
     uint16_t len;
     uint64_t addr;
 } __attribute__((packed));
 
-static uint64_t gdt[5];
+struct tss __tss;
+
+/* Five 8-byte descriptors and one 16-byte one (TSS) */
+static uint64_t gdt[7];
 
 static void
 encode_gdt_entry(uint8_t *target, uint32_t base, uint32_t limit, uint8_t access_byte, uint8_t flags)
@@ -40,6 +43,28 @@ encode_gdt_entry(uint8_t *target, uint32_t base, uint32_t limit, uint8_t access_
     target[6] |= (flags << 4);
 }
 
+void encode_tss_gdt_entry(
+    uint8_t *target, uint64_t base, uint32_t limit, uint8_t access_byte, uint8_t flags)
+{
+    /* All fields are the same except base, which is extended to 64 bits */
+    encode_gdt_entry(target, 0, limit, access_byte, flags);
+
+    target[2] = base & 0xFF;
+    target[3] = (base >> 8) & 0xFF;
+    target[4] = (base >> 16) & 0xFF;
+    target[7] = (base >> 24) & 0xFF;
+    target[8] = (base >> 32) & 0xFF;
+    target[9] = (base >> 40) & 0xFF;
+    target[10] = (base >> 48) & 0xFF;
+    target[11] = (base >> 56) & 0xFF;
+
+    /* Top 4 bytes are reserved */
+    target[12] = 0;
+    target[13] = 0;
+    target[14] = 0;
+    target[15] = 0;
+}
+
 static void load_gdt()
 {
     struct gdtr gdtr;
@@ -47,7 +72,7 @@ static void load_gdt()
     gdtr.addr = (uint64_t)&gdt;
     asm("lgdt %0" : : "m"(gdtr));
 
-    flush_gdt(0x8, 0x10);
+    flush_gdt(0x8, 0x10, 0x28);
 }
 
 void gdt_init()
@@ -61,14 +86,15 @@ void gdt_init()
     /* kernel DS */
     encode_gdt_entry((uint8_t *)(gdt + 2), 0, 0xFFFFF, 0x92, 0xC);
 
-    /* user CS */
-    encode_gdt_entry((uint8_t *)(gdt + 3), 0, 0xFFFFF, 0xFA, 0xA);
-
     /* user DS */
-    encode_gdt_entry((uint8_t *)(gdt + 4), 0, 0xFFFFF, 0xF2, 0xC);
+    encode_gdt_entry((uint8_t *)(gdt + 3), 0, 0xFFFFF, 0xF2, 0xC);
+
+    /* user CS */
+    encode_gdt_entry((uint8_t *)(gdt + 4), 0, 0xFFFFF, 0xFA, 0xA);
 
     /* TSS */
-    // encode_gdt_entry(gdt + 5, 0, 0, 0, 0);
+    memset(&__tss, 0, sizeof(__tss));
+    encode_tss_gdt_entry((uint8_t *)(gdt + 5), (uint64_t)&__tss, sizeof(__tss), 0x89, 0);
 
     load_gdt();
 }

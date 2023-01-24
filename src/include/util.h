@@ -15,7 +15,9 @@
         _val & ~(_align - 1);                                                                      \
     })
 
+#define DIV_CEIL(x, y) ((x + y - 1) / y)
+
 __attribute__((noreturn))
-void panic(char *s);
+void panic(char *fmt, ...);
 
 #endif /* __UTIL_H */

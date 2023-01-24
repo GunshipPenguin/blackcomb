@@ -1,5 +1,6 @@
 #include "kmalloc.h"
 #include "defs.h"
+#include "string.h"
 #include "util.h"
 #include "vmm.h"
 
@@ -13,6 +14,8 @@ struct block {
     struct block *next;
     struct block *prev;
 };
+
+extern struct mm kernel_mm;
 
 static struct block *split_block(size_t size, struct block *victim)
 {
@@ -69,7 +72,7 @@ void *kmalloc(size_t size)
 
     if (!target) {
         /* No free block found, use sbrk to get more memory */
-        target = sbrk(sizeof(struct block) + size);
+        target = sbrk(&kernel_mm, sizeof(struct block) + size);
         target->in_use = 1;
 
         target->next = NULL;
@@ -79,6 +82,16 @@ void *kmalloc(size_t size)
 
     target->in_use = 1;
     return target + 1;
+}
+
+void *kcalloc(size_t nmemb, size_t size)
+{
+    size_t sz = nmemb * size;
+
+    void *mem = kmalloc(sz);
+    memset(mem, 0, sz);
+
+    return mem;
 }
 
 void free(void *ptr)
@@ -109,7 +122,7 @@ void free(void *ptr)
 
 void kmalloc_init()
 {
-    heap_base = sbrk(INIT_HEAP_SIZE);
+    heap_base = sbrk(&kernel_mm, INIT_HEAP_SIZE);
 
     struct block *first = heap_base;
     first->size = INIT_HEAP_SIZE - sizeof(struct block);

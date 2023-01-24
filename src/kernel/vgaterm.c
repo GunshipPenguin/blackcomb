@@ -7,7 +7,7 @@
 
 #define VGATERM_WIDTH 80
 #define VGATERM_HEIGHT 25
-#define VGATERM_BUF_START ((uint16_t *)0xB8000)
+#define VGATERM_BUF_START ((uint16_t *)0xffffffff800b8000)
 
 #define VGATERM_ENTRY(c, color) (uint16_t)(c | color << 8)
 #define VGATERM_COLOR(fg, bg) ((uint8_t)(fg | bg << 4))
@@ -26,10 +26,14 @@ void _putchar(char c)
 
 static void vgaterm_scroll()
 {
-    for (size_t row = 0; row < VGATERM_HEIGHT - 1; row++) {
+    for (size_t row = 0; row < VGATERM_HEIGHT; row++) {
         for (size_t col = 0; col < VGATERM_WIDTH; col++) {
             vgaterm_buf[VGATERM_ADDR(col, row)] = vgaterm_buf[VGATERM_ADDR(col, row + 1)];
         }
+    }
+
+    for (size_t col = 0; col < VGATERM_WIDTH; col++) {
+        vgaterm_buf[VGATERM_ADDR(col, VGATERM_HEIGHT)] = 0;
     }
 }
 
