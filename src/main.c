@@ -8,6 +8,7 @@
 #include "vgaterm.h"
 #include "vmm.h"
 #include "ext2.h"
+#include "printf.h"
 
 int kernel_main(uintptr_t mboot_info)
 {
@@ -16,18 +17,22 @@ int kernel_main(uintptr_t mboot_info)
     vgaterm_print("> Blackcomb\n");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
+    printf("Initializing MM\n");
     mm_init((void *)mboot_info);
+
+    printf("Initializing GDT\n");
     gdt_init();
 
+    printf("Initializing IDT\n");
     idt_init();
 
-    char *buf = kmalloc(1024);
-    printf("kmalloc'd a region of size 1024 at %p\n", buf);
-    strcpy(buf, "Hello World!");
-    printf("This string is in a kmalloc'd region -> \"%s\"\n", buf);
+    printf("Mounting /\n");
+    struct ext2_fs *fs = ext2_mount();
 
-    ext2_read_file("/etc/passwd", NULL, 0);
+    printf("Contents of /\n");
+    ext2_ls(fs, "/");
 
+    printf("Idling....\n");
     for (;;) {
     }
 }

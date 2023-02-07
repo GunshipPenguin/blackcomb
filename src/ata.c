@@ -37,11 +37,11 @@ static void wait_ready()
 
 void load_lba_nsectors(uint32_t lba, uint8_t nsectors)
 {
-    outb(ATA_DRIVE_HEAD_REG, 0xE0 | ((lba >> 24) & 0xF));
+    outb(ATA_DRIVE_HEAD_REG, 0xE0 | ((lba >> 24) & 0xFF));
     outb(ATA_SECTOR_COUNT_REG, nsectors);
-    outb(ATA_SECTOR_NUMBER_REG, lba & 0xF);
-    outb(ATA_CYLINDER_LOW_REG, (lba >> 8) & 0xF);
-    outb(ATA_CYLINDER_HIGH_REG, (lba >> 16) & 0xF);
+    outb(ATA_SECTOR_NUMBER_REG, lba & 0xFF);
+    outb(ATA_CYLINDER_LOW_REG, (lba >> 8) & 0xFF);
+    outb(ATA_CYLINDER_HIGH_REG, (lba >> 16) & 0xFF);
 }
 
 void ata_read(void *buf, uint32_t lba, uint8_t nsectors)
@@ -73,17 +73,20 @@ void ata_write(void *buf, uint32_t lba, uint8_t nsectors)
 
 void ata_read_bytes(void *buf, uint32_t off, uint32_t len)
 {
-    uint32_t off_lba = off / SECTOR_SIZE;
+    uint32_t lba = off / SECTOR_SIZE;
+    uint32_t sector_off = off % SECTOR_SIZE;
+
     /* ceil(len / SECTOR_SIZE) */
     uint32_t nsectors = (len + SECTOR_SIZE - 1) / SECTOR_SIZE;
 
     /* TODO: This alloc is unncessary, get rid of it for perf reasons */
-    void *readbuf = kmalloc(nsectors * SECTOR_SIZE);
+    char *readbuf = kmalloc(nsectors * SECTOR_SIZE);
     if (!buf)
         panic("out of memory");
 
-    ata_read(readbuf, off_lba, nsectors);
-    memcpy(buf, readbuf, len);
+    ata_read(readbuf, lba, nsectors);
+
+    memcpy(buf, readbuf + sector_off, len);
     free(readbuf);
 }
 

@@ -3,67 +3,29 @@
 #include "kmalloc.h"
 #include "string.h"
 #include "util.h"
+#include "printf.h"
 
 #include <stdint.h>
 
-struct ext2_sb {
-    uint32_t s_inodes_count;
-    uint32_t s_blocks_count;
-    uint32_t s_r_blocks_count;
-    uint32_t s_free_blocks_count;
-    uint32_t s_free_inodes_count;
-    uint32_t s_first_data_block;
-    uint32_t s_log_block_size;
-    uint32_t s_log_frag_size;
-    uint32_t s_blocks_per_group;
-    uint32_t s_frags_per_group;
-    uint32_t s_inodes_per_group;
-    uint32_t s_mtime;
-    uint32_t s_wtime;
-    uint16_t s_mnt_count;
-    uint16_t s_max_mnt_count;
-    uint16_t s_magic;
-    uint16_t s_state;
-    uint16_t s_errors;
-    uint16_t s_minor_rev_level;
-    uint32_t s_lastcheck;
-    uint32_t s_checkinterval;
-    uint32_t s_creator_os;
-    uint32_t s_rev_level;
-    uint16_t s_def_resuid;
-    uint16_t s_def_resgid;
+#define SB_START_BYTES 1024
 
-    /* EXT2 dynamic rev stuff - Unimplemented */
-    uint32_t s_first_ino;
-    uint16_t s_inode_size;
-    uint16_t s_block_group_nr;
-    uint32_t s_feature_compat;
-    uint32_t s_feature_incompat;
-    uint32_t s_feature_ro_compat;
-    char s_uuid[16];
-    char s_volume_name[16];
-    char s_last_mounted[64];
-    uint32_t s_algo_bitmap;
+/* Root inode */
+#define EXT2_ROOT_INO 2
 
-    /* Performance hints - Unimplemented */
-    uint8_t s_prealloc_blocks;
-    uint8_t s_prealloc_dir_blocks;
-    uint16_t pad1;
+void read_blk(struct ext2_fs *fs, void *buf, uint32_t boff, uint32_t len)
+{
+    ata_read_bytes(buf, boff * fs->block_size, len);
+}
 
-    /* Journaling - Unimplemented */
-    char s_journal_uuid[16];
-    uint32_t s_journal_inum;
-    uint32_t s_journal_dev;
-    uint32_t s_last_orphan;
+void ext2_get_inode(struct ext2_fs *fs, struct ext2_ino *buf, int ino)
+{
+    struct ext2_bgd *bg = &fs->bgdt[ino / fs->sb.s_inodes_per_group];
 
-    /* Directory indexing support - Unimplemented */
-    uint32_t s_hash_seed[4];
-    uint8_t s_def_hash_version;
-    uint8_t pad2[3];
+    int ioff = (ino % fs->sb.s_inodes_per_group) - 1;
+    unsigned int off = (bg->bg_inode_table * fs->block_size) + (ioff * sizeof(struct ext2_ino));
 
-    uint32_t s_default_mount_options;
-    uint32_t s_first_meta_bg;
-};
+    ata_read_bytes(buf, off, sizeof(struct ext2_ino));
+}
 
 struct ext2_fs *ext2_mount()
 {
@@ -73,14 +35,54 @@ struct ext2_fs *ext2_mount()
 
     struct ext2_sb sb;
     memset(&sb, 0, sizeof(sb));
-    ata_read_bytes(&sb, 1024, 1024);
-
+    ata_read_bytes(&sb, SB_START_BYTES, sizeof(sb));
+    fs->sb = sb;
     fs->block_size = 1024 << sb.s_log_block_size;
+
+    /* block_size is set so we can use read now */
+    int bgdt_elems = (sb.s_blocks_count / sb.s_blocks_per_group);
+    fs->bgdt = kmalloc(bgdt_elems * sizeof(struct ext2_bgd));
+    read_blk(fs, fs->bgdt, 2, bgdt_elems * sizeof(struct ext2_bgd));
+
+    /* EXT2_GOOD_OLD_REV specifies that the first 11 inodes are reserved */
+    struct ext2_ino r_inodes[11];
+    read_blk(fs, &r_inodes, fs->bgdt[0].bg_inode_table, sizeof(r_inodes));
+    fs->rooti = r_inodes[1];
 
     return fs;
 }
 
-void ext2_read_file(const char *path, char *buf, uint64_t off)
+void ext2_ls(struct ext2_fs *fs, const char *path)
 {
+    void *data = kmalloc(fs->block_size);
+    read_blk(fs, data, fs->rooti.i_block[0], fs->block_size);
 
+    uint32_t doff = 0;
+
+    while (doff < fs->block_size) {
+        struct ext2_dirent *de = (struct ext2_dirent *) (((char *) data) + doff);
+        if (de->inode == 0)
+            continue;
+
+        struct ext2_ino in;
+        ext2_get_inode(fs, &in, de->inode);
+        uint32_t im = in.i_mode;
+        printf("%c%c%c%c%c%c%c%c%c%c ",
+            '-',
+            im & EXT2_S_IRUSR ? 'r' : '-',
+            im & EXT2_S_IWUSR ? 'w' : '-',
+            im & EXT2_S_IXUSR ? 'x' : '-',
+            im & EXT2_S_IRGRP ? 'r' : '-',
+            im & EXT2_S_IWGRP ? 'w' : '-',
+            im & EXT2_S_IXGRP ? 'x' : '-',
+            im & EXT2_S_IROTH ? 'r' : '-',
+            im & EXT2_S_IWOTH ? 'w' : '-',
+            im & EXT2_S_IXOTH ? 'x' : '-');
+
+        for (int i = 0; i < de->name_len; i++)
+            printf("%c", de->name[i]);
+        printf("\n");
+
+        doff += de->rec_len;
+    }
 }
