@@ -52,6 +52,53 @@ struct ext2_fs *ext2_mount()
     return fs;
 }
 
+void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk)
+{
+    if (blk > in->i_blocks)
+        panic("Can't get block at index greater than file size");
+
+    if (blk > 12)
+        panic("Do you really think I've implemented double and triple indirect blocks at this point?");
+
+    read_blk(fs, buf, in->i_block[blk], fs->block_size);
+}
+
+void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
+{
+    char comp[256];
+    const char *comp_start = path + 1;
+    void *dirbuf = kmalloc(fs->block_size);
+
+    *in = kmalloc(fs->block_size);
+    memcpy(*in, &fs->rooti, sizeof(fs->rooti));
+
+    for (;;) {
+        int l = 0;
+        while (comp_start[l] != '/' && comp_start[l] != '\0') l++;
+        memcpy(comp, comp_start, l);
+        comp[l] = '\0';
+
+        comp_start += l;
+
+        ext2_getblock(fs, *in, dirbuf, 1);
+        unsigned int doff = 0;
+        while (doff < fs->block_size) {
+            struct ext2_dirent *de = (struct ext2_dirent *) (((char *) dirbuf) + doff);
+            if (de->inode == 0)
+                goto next_dirent;
+
+            if (strncmp(comp, de->name, strlen(comp)) == 0) {
+                ext2_get_inode(fs, *in, de->inode);
+                break;
+            }
+
+next_dirent:
+            doff += de->rec_len;
+            continue;
+        }
+    }
+}
+
 void ext2_ls(struct ext2_fs *fs, const char *path)
 {
     void *data = kmalloc(fs->block_size);

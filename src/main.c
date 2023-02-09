@@ -32,6 +32,9 @@ int kernel_main(uintptr_t mboot_info)
     printf("Contents of /\n");
     ext2_ls(fs, "/");
 
+    struct ext2_ino *in;
+    ext2_namei(fs, &in, "/file.txt");
+
     printf("Idling....\n");
     for (;;) {
     }
