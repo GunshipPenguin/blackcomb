@@ -138,6 +138,7 @@ struct ext2_fs {
 
 struct ext2_fs *ext2_mount();
 void ext2_ls(struct ext2_fs *fs, const char *path);
+void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk);
 void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path);
 
 #endif

@@ -1,4 +1,5 @@
 #include "ata.h"
+#include "ext2.h"
 #include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
@@ -7,8 +8,6 @@
 #include "string.h"
 #include "vgaterm.h"
 #include "vmm.h"
-#include "ext2.h"
-#include "printf.h"
 
 int kernel_main(uintptr_t mboot_info)
 {
@@ -34,6 +33,10 @@ int kernel_main(uintptr_t mboot_info)
 
     struct ext2_ino *in;
     ext2_namei(fs, &in, "/file.txt");
+
+    char *contentbuf = kmalloc(fs->block_size);
+    ext2_getblock(fs, in, contentbuf, 0);
+    printf("Contents of /file.txt: %s", contentbuf);
 
     printf("Idling....\n");
     for (;;) {

@@ -1,9 +1,9 @@
 #include "ext2.h"
 #include "ata.h"
 #include "kmalloc.h"
+#include "printf.h"
 #include "string.h"
 #include "util.h"
-#include "printf.h"
 
 #include <stdint.h>
 
@@ -58,7 +58,8 @@ void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned 
         panic("Can't get block at index greater than file size");
 
     if (blk > 12)
-        panic("Do you really think I've implemented double and triple indirect blocks at this point?");
+        panic("Do you really think I've implemented double and triple indirect blocks at this "
+              "point?");
 
     read_blk(fs, buf, in->i_block[blk], fs->block_size);
 }
@@ -72,27 +73,28 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
     *in = kmalloc(fs->block_size);
     memcpy(*in, &fs->rooti, sizeof(fs->rooti));
 
-    for (;;) {
+    while (*comp_start != '\0') {
         int l = 0;
-        while (comp_start[l] != '/' && comp_start[l] != '\0') l++;
+        while (comp_start[l] != '/' && comp_start[l] != '\0')
+            l++;
         memcpy(comp, comp_start, l);
         comp[l] = '\0';
 
         comp_start += l;
 
-        ext2_getblock(fs, *in, dirbuf, 1);
+        ext2_getblock(fs, *in, dirbuf, 0);
         unsigned int doff = 0;
         while (doff < fs->block_size) {
-            struct ext2_dirent *de = (struct ext2_dirent *) (((char *) dirbuf) + doff);
+            struct ext2_dirent *de = (struct ext2_dirent *)(((char *)dirbuf) + doff);
             if (de->inode == 0)
                 goto next_dirent;
 
-            if (strncmp(comp, de->name, strlen(comp)) == 0) {
+            if (strncmp(comp, de->name, de->name_len) == 0) {
                 ext2_get_inode(fs, *in, de->inode);
                 break;
             }
 
-next_dirent:
+        next_dirent:
             doff += de->rec_len;
             continue;
         }
@@ -107,24 +109,18 @@ void ext2_ls(struct ext2_fs *fs, const char *path)
     uint32_t doff = 0;
 
     while (doff < fs->block_size) {
-        struct ext2_dirent *de = (struct ext2_dirent *) (((char *) data) + doff);
+        struct ext2_dirent *de = (struct ext2_dirent *)(((char *)data) + doff);
         if (de->inode == 0)
             continue;
 
         struct ext2_ino in;
         ext2_get_inode(fs, &in, de->inode);
         uint32_t im = in.i_mode;
-        printf("%c%c%c%c%c%c%c%c%c%c ",
-            '-',
-            im & EXT2_S_IRUSR ? 'r' : '-',
-            im & EXT2_S_IWUSR ? 'w' : '-',
-            im & EXT2_S_IXUSR ? 'x' : '-',
-            im & EXT2_S_IRGRP ? 'r' : '-',
-            im & EXT2_S_IWGRP ? 'w' : '-',
-            im & EXT2_S_IXGRP ? 'x' : '-',
-            im & EXT2_S_IROTH ? 'r' : '-',
-            im & EXT2_S_IWOTH ? 'w' : '-',
-            im & EXT2_S_IXOTH ? 'x' : '-');
+        printf("%c%c%c%c%c%c%c%c%c%c ", '-', im & EXT2_S_IRUSR ? 'r' : '-',
+               im & EXT2_S_IWUSR ? 'w' : '-', im & EXT2_S_IXUSR ? 'x' : '-',
+               im & EXT2_S_IRGRP ? 'r' : '-', im & EXT2_S_IWGRP ? 'w' : '-',
+               im & EXT2_S_IXGRP ? 'x' : '-', im & EXT2_S_IROTH ? 'r' : '-',
+               im & EXT2_S_IWOTH ? 'w' : '-', im & EXT2_S_IXOTH ? 'x' : '-');
 
         for (int i = 0; i < de->name_len; i++)
             printf("%c", de->name[i]);
