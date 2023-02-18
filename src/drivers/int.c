@@ -87,7 +87,13 @@ void isr_main_entry(struct isr_ctx *ctx)
     uint32_t vec = (ctx->info >> 32) & 0xFFFF;
     uint32_t err = ctx->info & 0xFFFF;
 
-    //printf("Interrupt %d, error %d\n", vec, err);
+    if (vec == 0xD)
+        panic("General protection fault");
+
+    if (vec == 0xE)
+        panic("Page fault");
+
+    // printf("Interrupt %d, error %d\n", vec, err);
     send_eoi(vec);
 }
 
@@ -149,5 +155,5 @@ void idt_init()
     remap_pic(PIC1_REMAP_BASE, PIC2_REMAP_BASE);
 
     asm volatile("lidt %0" : : "m"(idtr));
-    asm volatile("sti");
+//    asm volatile("sti");
 }

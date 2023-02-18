@@ -11,6 +11,10 @@ struct mboot_info {
     struct multiboot_tag tags[];
 };
 
+struct mm_struct {
+    
+};
+
 void mm_init(void *mboot_info_start);
 void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag);
 

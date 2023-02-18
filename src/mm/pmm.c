@@ -11,6 +11,7 @@
 
 #define BOOT_IDENTITY_MAP_LIMIT 0x200000
 #define MAX_REGIONS 64
+#define BITS(x) ((x) * 8)
 
 struct mmap_region {
     char *start;
@@ -22,18 +23,20 @@ struct mmap_region regions[MAX_REGIONS];
 
 bool region_get_bit(struct mmap_region *region, size_t i)
 {
-    return !!(region->start[i / sizeof(region->start)] & (1 << (i % sizeof(region->start))));
+    char *start = P_TO_V(char, region->start);
+    return !!(start[i / BITS(sizeof(*start))] & (1 << (i % BITS(sizeof(*start)))));
 }
 
 void region_set_bit(struct mmap_region *region, size_t i)
 {
     char *start = P_TO_V(char, region->start);
-    start[i / sizeof(start)] |= 1 << (i % sizeof(start));
+    start[i / BITS(sizeof(*start))] |= 1 << (i % BITS(sizeof(*start)));
 }
 
 void region_unset_bit(struct mmap_region *region, size_t i)
 {
-    region->start[i / sizeof(region->start)] &= ~1 << (i % sizeof(region->start));
+    char *start = P_TO_V(char, region->start);
+    start[i / BITS(sizeof(*start))] &= ~1 << (i % BITS(sizeof(*start)));
 }
 
 void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
@@ -72,16 +75,15 @@ uint64_t find_free_page(struct mmap_region *region)
 void pmm_init_regions()
 {
     for (size_t i = 0; i < n_regions; i++) {
-        size_t len = regions[i].pages * PAGE_SIZE;
-
-        size_t bmap_size = ((len / PAGE_SIZE) / 8);
-        memset(regions[i].start, 0, bmap_size);
+        size_t bmap_size = (regions[i].pages + 8 - 1) / 8;
+        char *start = P_TO_V(char, regions[i].start);
+        memset(start, 0, bmap_size);
 
         /*
          * Set bits corresponding to the bitmap itself so pages containing the bitmap are
          * never returned to fulfill an allocation request.
          */
-        for (int j = 0; j < ALIGNUP(bmap_size, PAGE_SIZE); j++)
+        for (int j = 0; j < (bmap_size + PAGE_SIZE - 1) / PAGE_SIZE; j++)
             region_set_bit(&regions[i], j);
     }
 }

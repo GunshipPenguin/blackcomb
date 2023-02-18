@@ -1,8 +1,10 @@
 #include "ata.h"
+#include "exec.h"
 #include "ext2.h"
 #include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
+#include "pmm.h"
 #include "mm.h"
 #include "printf.h"
 #include "string.h"
@@ -55,9 +57,14 @@ int kernel_main(uintptr_t mboot_info)
     struct ext2_ino *in;
     ext2_namei(fs, &in, "/file.txt");
 
-    char *contentbuf = kmalloc(fs->block_size);
-    ext2_getblock(fs, in, contentbuf, 0);
+    char *contentbuf = ext2_read_file(fs, in);
     printf("Contents of /file.txt: %s", contentbuf);
+    free(contentbuf);
+
+    struct ext2_ino *init_ino;
+    struct mm_struct mm;
+    ext2_namei(fs, &init_ino, "/init");
+    map_elf(fs, init_ino, &mm);
 
     printf("Idling....\n");
     for (;;) {

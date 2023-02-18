@@ -9,7 +9,6 @@
 
 #define SB_START_BYTES 1024
 
-/* Root inode */
 #define EXT2_ROOT_INO 2
 
 void read_blk(struct ext2_fs *fs, void *buf, uint32_t boff, uint32_t len)
@@ -52,7 +51,7 @@ struct ext2_fs *ext2_mount()
     return fs;
 }
 
-void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk)
+void ext2_get_block(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk)
 {
     if (blk > in->i_blocks)
         panic("Can't get block at index greater than file size");
@@ -62,6 +61,23 @@ void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned 
               "point?");
 
     read_blk(fs, buf, in->i_block[blk], fs->block_size);
+}
+
+void ext2_get_blocks(struct ext2_fs *fs, struct ext2_ino *in, char *buf, uint32_t n)
+{
+    for (int i = 0; i < n; i++) {
+        ext2_get_block(fs, in, buf + (i * fs->block_size), i);
+    }
+}
+
+void *ext2_read_file(struct ext2_fs *fs, struct ext2_ino *in)
+{
+    uint32_t nblk = (in->i_size + fs->block_size - 1) / fs->block_size;
+    char *buf = kmalloc(nblk * fs->block_size);
+    ext2_get_blocks(fs, in, buf, nblk);
+    memset(buf + in->i_size, 0, (nblk * fs->block_size) - in->i_size);
+
+    return buf;
 }
 
 void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
@@ -82,7 +98,7 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
 
         comp_start += l;
 
-        ext2_getblock(fs, *in, dirbuf, 0);
+        ext2_get_block(fs, *in, dirbuf, 0);
         unsigned int doff = 0;
         while (doff < fs->block_size) {
             struct ext2_dirent *de = (struct ext2_dirent *)(((char *)dirbuf) + doff);
