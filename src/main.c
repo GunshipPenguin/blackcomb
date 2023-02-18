@@ -8,25 +8,46 @@
 #include "string.h"
 #include "vgaterm.h"
 #include "vmm.h"
+#include <stdarg.h>
 
-int kernel_main(uintptr_t mboot_info)
+void log_ok(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    printf("[ ");
+    vgaterm_setcolor(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+    printf("OK");
+    vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    printf(" ] ");
+
+    vprintf(fmt, args);
+}
+
+void banner()
 {
     vgaterm_clear();
     vgaterm_setcolor(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
-    vgaterm_print("> Blackcomb\n");
+    printf("> Blackcomb\n");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+}
 
-    printf("Initializing MM\n");
+int kernel_main(uintptr_t mboot_info)
+{
+    banner();
+
     mm_init((void *)mboot_info);
+    log_ok("MM Initialized\n");
 
-    printf("Initializing GDT\n");
     gdt_init();
+    log_ok("GDT Initialized\n");
 
-    printf("Initializing IDT\n");
     idt_init();
+    log_ok("IDT Initialized\n");
 
-    printf("Mounting /\n");
     struct ext2_fs *fs = ext2_mount();
+    log_ok("Mounted /\n");
 
     printf("Contents of /\n");
     ext2_ls(fs, "/");
