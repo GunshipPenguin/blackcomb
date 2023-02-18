@@ -1,3 +1,6 @@
 *.o
 iso/boot/kern.elf
 *.iso
+
+cross
+cross-src

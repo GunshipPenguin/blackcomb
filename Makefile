@@ -1,8 +1,8 @@
-CC=gcc
+CC=./cross/bin/x86_64-elf-gcc
 AS=nasm
 
-CFLAGS=-fno-pic -mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -nostartfiles -g
-LDFLAGS=-no-pie -ffreestanding -nostdlib -nostartfiles -T link.lds -g
+CFLAGS=-mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -g
+LDFLAGS=-ffreestanding -nostdlib -T link.lds -g
 ASFLAGS =-f elf64
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
