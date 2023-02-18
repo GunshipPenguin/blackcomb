@@ -11,7 +11,7 @@
 
 #define BOOT_IDENTITY_MAP_LIMIT 0x200000
 #define MAX_REGIONS 64
-#define BITS(x) ((x) * 8)
+#define BITS(x) ((x)*8)
 
 struct mmap_region {
     char *start;
@@ -101,6 +101,9 @@ uint64_t pmm_alloc()
         if ((addr = find_free_page(&regions[i])) != 0)
             break;
     }
+
+    void *virt = P_TO_V(void, addr);
+    memset(virt, 0, PAGE_SIZE);
 
     return addr;
 }

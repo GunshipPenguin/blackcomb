@@ -155,5 +155,5 @@ void idt_init()
     remap_pic(PIC1_REMAP_BASE, PIC2_REMAP_BASE);
 
     asm volatile("lidt %0" : : "m"(idtr));
-//    asm volatile("sti");
+    //    asm volatile("sti");
 }

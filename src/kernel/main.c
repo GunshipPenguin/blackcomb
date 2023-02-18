@@ -4,7 +4,6 @@
 #include "gdt.h"
 #include "int.h"
 #include "kmalloc.h"
-#include "pmm.h"
 #include "mm.h"
 #include "printf.h"
 #include "string.h"
