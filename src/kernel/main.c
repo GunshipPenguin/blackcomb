@@ -7,6 +7,7 @@
 #include "mm.h"
 #include "printf.h"
 #include "string.h"
+#include "syscalls.h"
 #include "vgaterm.h"
 #include "vmm.h"
 #include <stdarg.h>
@@ -46,6 +47,9 @@ int kernel_main(uintptr_t mboot_info)
 
     idt_init();
     log_ok("IDT Initialized\n");
+
+    syscall_enable();
+    log_ok("Syscalls enabled\n");
 
     struct ext2_fs *fs = ext2_mount();
     log_ok("Mounted /\n");

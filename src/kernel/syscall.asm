@@ -27,16 +27,10 @@ syscall_enable:
 
     ret
 
-test_fcn:
-    nop
-    nop
-    nop
-    syscall
-    hlt
-
-global do_sysret
-do_sysret:
-    mov rcx, test_fcn
+; void enter_usermode(void *addr)
+global enter_usermode
+enter_usermode:
+    mov rcx, rdi  ; arg1 = address to jump to
     mov r11, 0x202
     o64 sysret
 

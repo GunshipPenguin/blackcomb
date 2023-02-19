@@ -160,25 +160,25 @@ void vmm_map_page(uintptr_t virt, uintptr_t phys)
     if (p4_get_entry(p4_i) == 0) {
         /* No p3 allocated here, get a free physical page */
         uintptr_t new_p3 = pmm_alloc();
-        uint64_t entry = new_p3 | PAGE_PRESENT | PAGE_WRITE;
+        uint64_t entry = new_p3 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
         p4_set_entry(p4_i, entry);
     }
 
     if (p3_get_entry(p4_i, p3_i) == 0) {
         /* No p2 allocated here, get a free physical page */
         uintptr_t new_p2 = pmm_alloc();
-        uint64_t entry = new_p2 | PAGE_PRESENT | PAGE_WRITE;
+        uint64_t entry = new_p2 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
         p3_set_entry(p4_i, p3_i, entry);
     }
 
     if (p2_get_entry(p4_i, p3_i, p2_i) == 0) {
         /* No p1 allocated here, get a free physical page */
         uintptr_t new_p1 = pmm_alloc();
-        uint64_t entry = new_p1 | PAGE_PRESENT | PAGE_WRITE;
+        uint64_t entry = new_p1 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
         p2_set_entry(p4_i, p3_i, p2_i, entry);
     }
 
-    p1_set_entry(p4_i, p3_i, p2_i, p1_i, phys | PAGE_PRESENT | PAGE_WRITE);
+    p1_set_entry(p4_i, p3_i, p2_i, p1_i, phys | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
 }
 
 void vmm_unmap_page(uintptr_t virt)
