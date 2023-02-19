@@ -213,7 +213,7 @@ void *sbrk(struct mm *mm, intptr_t inc)
 
     } else {
         /* Unmap newly unused pages */
-        uintptr_t new_unmap_start = ALIGNUP(mm->brk , PAGE_SIZE);
+        uintptr_t new_unmap_start = ALIGNUP(mm->brk, PAGE_SIZE);
         uintptr_t new_unmap_end = ALIGNUP(mm->brk + inc, PAGE_SIZE);
 
         for (int addr = new_unmap_start; addr >= new_unmap_end; addr -= PAGE_SIZE) {

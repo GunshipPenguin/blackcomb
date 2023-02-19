@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "multiboot2.h"
 #include "defs.h"
+#include "multiboot2.h"
 #include "string.h"
 #include "util.h"
 #include "vmm.h"
@@ -47,7 +47,6 @@ static void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag)
 
     return (struct multiboot_tag_mmap *)curr;
 }
-
 
 bool region_get_bit(struct mmap_region *region, size_t i)
 {
