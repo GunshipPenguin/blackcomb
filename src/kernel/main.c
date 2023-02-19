@@ -3,8 +3,8 @@
 #include "ext2.h"
 #include "gdt.h"
 #include "int.h"
+#include "pmm.h"
 #include "kmalloc.h"
-#include "mm.h"
 #include "printf.h"
 #include "string.h"
 #include "syscalls.h"
@@ -35,18 +35,29 @@ void banner()
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 }
 
+struct mm kernel_mm;
+
 int kernel_main(uintptr_t mboot_info)
 {
     banner();
 
-    mm_init((void *)mboot_info);
-    log_ok("MM Initialized\n");
+    pmm_init((void *)mboot_info);
+    log_ok("Page frame allocator initialized\n");
+
+    init_kernel_mm(&kernel_mm);
+    log_ok("Kernel page tables initialized\n");
+
+    switch_cr3(kernel_mm.p4);
+    log_ok("Kernel page tables switched\n");
+
+    kmalloc_init();
+    log_ok("Kmalloc initialized\n");
 
     gdt_init();
-    log_ok("GDT Initialized\n");
+    log_ok("GDT initialized\n");
 
     idt_init();
-    log_ok("IDT Initialized\n");
+    log_ok("IDT initialized\n");
 
     syscall_enable();
     log_ok("Syscalls enabled\n");
@@ -65,9 +76,8 @@ int kernel_main(uintptr_t mboot_info)
     free(contentbuf);
 
     struct ext2_ino *init_ino;
-    struct mm_struct mm;
     ext2_namei(fs, &init_ino, "/init");
-    map_elf(fs, init_ino, &mm);
+    map_elf(&kernel_mm, fs, init_ino);
 
     printf("Idling....\n");
     for (;;) {

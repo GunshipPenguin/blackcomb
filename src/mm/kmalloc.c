@@ -14,6 +14,8 @@ struct block {
     struct block *prev;
 };
 
+extern struct mm kernel_mm;
+
 static struct block *split_block(size_t size, struct block *victim)
 {
     if (victim->size - size <= sizeof(struct block)) {
@@ -69,7 +71,7 @@ void *kmalloc(size_t size)
 
     if (!target) {
         /* No free block found, use sbrk to get more memory */
-        target = sbrk(sizeof(struct block) + size);
+        target = sbrk(&kernel_mm, sizeof(struct block) + size);
         target->in_use = 1;
 
         target->next = NULL;
@@ -109,7 +111,7 @@ void free(void *ptr)
 
 void kmalloc_init()
 {
-    heap_base = sbrk(INIT_HEAP_SIZE);
+    heap_base = sbrk(&kernel_mm, INIT_HEAP_SIZE);
 
     struct block *first = heap_base;
     first->size = INIT_HEAP_SIZE - sizeof(struct block);

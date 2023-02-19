@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "multiboot2.h"
 #include "defs.h"
 #include "string.h"
 #include "util.h"
@@ -13,6 +14,12 @@
 #define MAX_REGIONS 64
 #define BITS(x) ((x)*8)
 
+struct mboot_info {
+    int32_t total_size;
+    int32_t reserved;
+    struct multiboot_tag tags[];
+};
+
 struct mmap_region {
     char *start;
     size_t pages;
@@ -20,6 +27,27 @@ struct mmap_region {
 
 size_t n_regions = 0;
 struct mmap_region regions[MAX_REGIONS];
+
+static void *mboot_find_tag(struct mboot_info *mboot, uint32_t tag)
+{
+    struct multiboot_tag *curr = mboot->tags;
+
+    while (1) {
+        if (curr->type == tag)
+            break;
+        else if (curr->type == MULTIBOOT_TAG_TYPE_END)
+            break;
+
+        uintptr_t next = ALIGNUP((uintptr_t)curr + curr->size, 8);
+        curr = (struct multiboot_tag *)next;
+    }
+
+    if (curr->type == MULTIBOOT_TAG_TYPE_END)
+        return NULL;
+
+    return (struct multiboot_tag_mmap *)curr;
+}
+
 
 bool region_get_bit(struct mmap_region *region, size_t i)
 {
@@ -88,8 +116,14 @@ void pmm_init_regions()
     }
 }
 
-void pmm_init(struct multiboot_tag_mmap *mmap)
+void pmm_init(void *mboot_info_start)
 {
+    struct mboot_info *mboot = mboot_info_start;
+    struct multiboot_tag_mmap *mmap = mboot_find_tag(mboot, MULTIBOOT_TAG_TYPE_MMAP);
+
+    if (mmap == NULL)
+        panic("Could not find multiboot2 mmap tag");
+
     pmm_set_mmap(mmap);
     pmm_init_regions();
 }

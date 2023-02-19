@@ -44,8 +44,13 @@ ALIGN 4
 
 
 ; Page tables are set up by the bootstrapping ASM as follows:
-; 0000000000000000-0000000000200000 0000000000200000 -rw     -- Identity map of First 2Mib
-; ffffffff80000000-ffffffff80200000 0000000000200000 -rw     -- Higher half mapping of first 2Mib
+;
+; 0000000000000000-0000000000200000 0000000000200000 -rw     -> Identity map of first 2 Mib
+; ffff888000000000-ffff888040000000 0000000040000000 -rw     -> Mapping of all physical memory
+; ffffff0000000000-ffffff0000008000 0000000000008000 -rw     -> Kernel stack mapping (.kernelstack)
+; ffffffff80000000-ffffffff80200000 0000000000200000 -rw     -> Higher half mapping of first 2 MiB
+;
+; This is enough to initialize the VMM/PMM and bootstrap further in the C code.
 align PAGE_SIZE
 page_tables:
 .p4:
@@ -75,10 +80,10 @@ page_tables:
     resb PAGE_SIZE
 
 section .kernelstack
+global __kernel_stack_top
 align PAGE_SIZE
-stack_bottom:
 resb KERNEL_STACK_SIZE
-stack_top:
+__kernel_stack_top:
 
 section .text.boot
 bits 32
@@ -222,6 +227,6 @@ long_mode:
     mov ss, ax
 
     ; Setup stack and jump to C kernel_main
-    mov rsp, stack_top
+    mov rsp, __kernel_stack_top
     mov rdi, rbx
     call kernel_main
