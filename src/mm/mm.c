@@ -79,4 +79,5 @@ void mm_init(void *mboot_info_start)
     /* vmm_init does not require a functioning PMM, but pmm_init requires an initialized vmm */
     vmm_init(mmap);
     pmm_init(mmap);
+    kmalloc_init();
 }

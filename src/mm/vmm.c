@@ -16,7 +16,7 @@
 #define PAGE_USER (1 << 2)
 #define PAGE_SIZE_FLAG (1 << 7)
 
-#define BRK_START 0x90000000
+#define KERNEL_BRK_START 0xFFFFC90000000000
 
 #define __aligned4k __attribute__((aligned(0x1000)))
 
@@ -91,7 +91,7 @@ void vmm_setup_phys_mapping(uint64_t physmem_size)
 void vmm_init()
 {
     vmm_setup_phys_mapping(1 << 20);
-    curr_brk = BRK_START;
+    curr_brk = KERNEL_BRK_START;
 }
 
 uint64_t p4_get_entry(int i)
