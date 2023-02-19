@@ -39,9 +39,11 @@ void vmm_setup_phys_mapping(uint64_t physmem_size)
 #define ENTRY(x) (((uint64_t)x) | (PAGE_PRESENT | PAGE_WRITE | PAGE_USER))
 
     /* Identity map first 2 MiB */
+    /*
     kernel_p4[0] = ENTRY(V_TO_P_STATIC(&kernel_p3_lower[0]));
     kernel_p3_lower[0] = ENTRY(V_TO_P_STATIC(&kernel_p2_lower[0]));
     kernel_p2_lower[0] = ENTRY(V_TO_P_STATIC(&kernel_p1[0]));
+    */
 
     for (uint64_t i = 0; i < 512; i++)
         kernel_p1[i] = ENTRY(i * 0x1000);
@@ -90,7 +92,7 @@ void vmm_setup_phys_mapping(uint64_t physmem_size)
 
 void vmm_init()
 {
-    vmm_setup_phys_mapping(1 << 20);
+    //    vmm_setup_phys_mapping(1 << 20);
     curr_brk = KERNEL_BRK_START;
 }
 
