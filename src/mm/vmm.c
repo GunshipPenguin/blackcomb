@@ -17,12 +17,14 @@
 
 #define KERNEL_BRK_START 0xFFFFC90000000000
 
+struct mm kernel_mm;
+
 void switch_cr3(uint64_t addr)
 {
     asm volatile("mov %0, %%cr3" : : "r"(addr));
 }
 
-void mm_map(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages)
+void vmm_map_range(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages)
 {
     if ((virt & PAGE_MASK) || (phys & PAGE_MASK))
         panic("mapping is not paged aligned");
@@ -33,7 +35,7 @@ void mm_map(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages)
     }
 }
 
-void mm_unmap(struct mm *mm, uint64_t virt, uint64_t npages)
+void vmm_unmap_range(struct mm *mm, uint64_t virt, uint64_t npages)
 {
     if (virt & PAGE_MASK)
         panic("mapping is not paged aligned");
@@ -41,24 +43,6 @@ void mm_unmap(struct mm *mm, uint64_t virt, uint64_t npages)
     for (int pg = 0; pg < npages; pg++) {
         vmm_unmap_page(mm, virt + (pg * PAGE_SIZE));
     }
-}
-
-void init_kernel_mm(struct mm *mm)
-{
-    mm->brk = KERNEL_BRK_START;
-
-    /* Identity map first 2 MiB */
-    mm_map(mm, 0, 0, 512);
-
-    /* Higher half mapping of kernel at 0xffffffff80000000 */
-    mm_map(mm, 0xffffffff80000000, 0, 512);
-
-    /* Map all physical memory at 0xffff888000000000 */
-    mm_map(mm, 0xffff888000000000, 0, 512);
-
-    /* Map kernel stack at 0xffffff0000000000 */
-    extern void *__kernel_stack_top;
-    mm_map(mm, 0xffffff0000000000, (uint64_t)&__kernel_stack_top, 8);
 }
 
 uint64_t p4_get_entry(struct mm *mm, int i)
@@ -197,6 +181,24 @@ maybe_free_p3:
 
 out:
     return;
+}
+
+void mm_add_kernel_mappings(struct mm *mm)
+{
+    mm->brk = KERNEL_BRK_START;
+
+    /* Higher half mapping of kernel at 0xffffffff80000000 */
+    vmm_map_range(mm, 0xffffffff80000000, 0, 512);
+
+    /* Map all physical memory at 0xffff888000000000 */
+    vmm_map_range(mm, 0xffff888000000000, 0, 512);
+
+    /* Map kernel stack at 0xffffff0000000000 */
+    extern void *__kernel_stack_top;
+    vmm_map_range(mm, 0xffffff0000000000, (uint64_t)&__kernel_stack_top, 8);
+
+    uint64_t brk_ndx = P4_NDX(0xFFFFC90000000000);
+    p4_set_entry(mm, brk_ndx, p4_get_entry(&kernel_mm, brk_ndx));
 }
 
 void *sbrk(struct mm *mm, intptr_t inc)

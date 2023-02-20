@@ -6,11 +6,27 @@
 #include "kmalloc.h"
 #include "pmm.h"
 #include "printf.h"
+#include "sched.h"
 #include "string.h"
 #include "syscalls.h"
 #include "vgaterm.h"
 #include "vmm.h"
 #include <stdarg.h>
+
+void log_info(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    printf("[ ");
+    vgaterm_setcolor(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
+    printf("INFO");
+    vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    printf(" ] ");
+
+    vprintf(fmt, args);
+}
 
 void log_ok(const char *fmt, ...)
 {
@@ -20,7 +36,7 @@ void log_ok(const char *fmt, ...)
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     printf("[ ");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    printf("OK");
+    printf(" OK ");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     printf(" ] ");
 
@@ -35,16 +51,14 @@ void banner()
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 }
 
-struct mm kernel_mm;
-
-int kernel_main(uintptr_t mboot_info)
+void kernel_main(uintptr_t mboot_info)
 {
     banner();
 
     pmm_init((void *)mboot_info);
     log_ok("Page frame allocator initialized\n");
 
-    init_kernel_mm(&kernel_mm);
+    mm_add_kernel_mappings(&kernel_mm);
     log_ok("Kernel page tables initialized\n");
 
     switch_cr3(kernel_mm.p4);
@@ -70,16 +84,10 @@ int kernel_main(uintptr_t mboot_info)
 
     struct ext2_ino *in;
     ext2_namei(fs, &in, "/file.txt");
-
     char *contentbuf = ext2_read_file(fs, in);
     printf("Contents of /file.txt: %s", contentbuf);
     free(contentbuf);
 
-    struct ext2_ino *init_ino;
-    ext2_namei(fs, &init_ino, "/init");
-    map_elf(&kernel_mm, fs, init_ino);
-
-    printf("Idling....\n");
-    for (;;) {
-    }
+    log_info("attempting to exec /init\n");
+    start_init(fs);
 }
