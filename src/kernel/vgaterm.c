@@ -26,10 +26,14 @@ void _putchar(char c)
 
 static void vgaterm_scroll()
 {
-    for (size_t row = 0; row < VGATERM_HEIGHT - 1; row++) {
+    for (size_t row = 0; row < VGATERM_HEIGHT; row++) {
         for (size_t col = 0; col < VGATERM_WIDTH; col++) {
             vgaterm_buf[VGATERM_ADDR(col, row)] = vgaterm_buf[VGATERM_ADDR(col, row + 1)];
         }
+    }
+
+    for (size_t col = 0; col < VGATERM_WIDTH; col++) {
+        vgaterm_buf[VGATERM_ADDR(col, VGATERM_HEIGHT)] = 0;
     }
 }
 

@@ -68,9 +68,6 @@ struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
     add_stack(task, USER_STACK_START, USER_STACK_PAGES);
     task->regs.rsp = USER_STACK_START;
 
-    add_stack(task, KERNEL_STACK_START, KERNEL_STACK_PAGES);
-    task->kernel_stack = KERNEL_STACK_START;
-
     switch_cr3(old_cr3);
 
     return task;

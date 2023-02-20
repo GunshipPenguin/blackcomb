@@ -92,6 +92,8 @@ global _start
 ; Kernel entry point, this bootstrapping ASM code sets up a GDT, enables
 ; paging, and enters long mode, then jumps to kernel_main.
 _start:
+    cli
+
     ; Identity mapping of first 2 MiB
     ; Entry 0 in P4
     ; Entry 0 in P3

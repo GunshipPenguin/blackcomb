@@ -10,8 +10,10 @@
 struct task_struct {
     uint64_t kernel_stack;
     struct regs regs;
-
     struct mm mm;
+
+    struct task_struct *next;
+    struct task_struct *prev;
 };
 
 extern struct task_struct *current;

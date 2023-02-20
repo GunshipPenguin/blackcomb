@@ -3,7 +3,7 @@ AS=nasm
 
 CFLAGS=-mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -g
 LDFLAGS=-ffreestanding -nostdlib -T link.lds -g
-ASFLAGS =-f elf64
+ASFLAGS =-f elf64 -I src/include
 
 CFLAGS+=-DPRINTF_DISABLE_SUPPORT_FLOAT -DPRINTF_DISABLE_SUPPORT_LONG_LONG
 

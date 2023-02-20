@@ -24,6 +24,6 @@ struct regs {
     uint64_t rax;
 
     uint64_t rip;
-};
+} __attribute__((packed));
 
 #endif /* __REGS_H__ */

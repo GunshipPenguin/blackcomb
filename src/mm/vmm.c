@@ -195,9 +195,10 @@ void mm_add_kernel_mappings(struct mm *mm)
 
     /* Map kernel stack at 0xffffff0000000000 */
     extern void *__kernel_stack_top;
-    vmm_map_range(mm, 0xffffff0000000000, (uint64_t)&__kernel_stack_top, 8);
+    vmm_map_range(mm, 0xffffff0000000000, (uint64_t)V_TO_P_STATIC(&__kernel_stack_top), 8);
 
-    uint64_t brk_ndx = P4_NDX(0xFFFFC90000000000);
+    /* Kernel heap is shared between all struct mm's */
+    uint64_t brk_ndx = P4_NDX(KERNEL_BRK_START);
     p4_set_entry(mm, brk_ndx, p4_get_entry(&kernel_mm, brk_ndx));
 }
 
