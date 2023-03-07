@@ -26,6 +26,7 @@ syscall_enable:
     mov ecx, 0xC0000084 ; FMASK
     rdmsr
     or eax, (1 << 9) | (1 << 10) ; Disable interrups, clear direction flag
+    wrmsr
 
     ret
 
@@ -59,15 +60,21 @@ enter_usermode:
     mov r11, 0x202
     o64 sysret
 
+rsp_scratch:
+dq 0
+
 extern do_syscall
 extern __kernelstack
 syscall_entry:
-    ; Switch from user to kernel stack
-    cli
+    ; Save rsp in static scratch space
+    mov [rsp_scratch], rsp
+
+    ; Switch to kernel stack
     mov rbp, 0
+    mov rsp, r11
     mov rsp, __kernelstack
 
-    ; Construct struct regs on stack
+    ; Construct struct regs on scratch stack
     push rcx ; syscall sets rcx to the userspace rip
 
     push rax
@@ -77,7 +84,7 @@ syscall_entry:
     push rdi
     push rsi
     push rbp
-    push rsp
+    push qword 0  ; TODO: Get RSP somehow
     push r8
     push r9
     push r10
@@ -87,6 +94,7 @@ syscall_entry:
     push r14
     push r15
 
+    ; First arg to do_syscall
     mov rdi, rsp
     call do_syscall
 
@@ -98,7 +106,10 @@ syscall_entry:
     pop r10
     pop r9
     pop r8
-    pop rsp
+
+    ; TODO pop rsp
+    pop r11 ; pop into scratch space for now
+
     pop rbp
     pop rsi
     pop rdi
@@ -110,4 +121,5 @@ syscall_entry:
     pop rcx ; Pop rip into rcx, sysret will set rip = rcx
     mov r11, 0x202 ; Re-enable interrupts on return to usermode
 
+    mov rsp, [rsp_scratch] ; Switch back to userspace stack
     o64 sysret
