@@ -17,11 +17,16 @@ extern struct mm kernel_mm;
 #define P_TO_V(type, x) ((type *)(PHYS_MAPPING_START + ((uint64_t)x)));
 
 void switch_cr3(uint64_t addr);
+
+void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages);
+
 void vmm_map_page(struct mm *mm, uintptr_t virt, uintptr_t phys);
 void vmm_unmap_page(struct mm *mm, uintptr_t virt);
+
 uintptr_t vmm_get_phys(struct mm *mm, uintptr_t virt);
 
-void mm_add_kernel_mappings(struct mm *mm);
 void *sbrk(struct mm *mm, intptr_t increment);
+
+void mm_add_kernel_mappings(struct mm *mm);
 
 #endif /* __VMM_H */

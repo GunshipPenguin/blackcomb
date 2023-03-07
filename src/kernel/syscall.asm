@@ -5,7 +5,7 @@ syscall_enable:
     ; Store kernel CS base in STAR [47:32] and user CS base in STAR [63:48]
     mov ecx, 0xC0000081 ; STAR
     rdmsr
-    mov edx, 0x00180008
+    mov edx, 0x00100008
     wrmsr
 
     ; Load &syscall_entry in LSTAR
@@ -29,22 +29,43 @@ syscall_enable:
 
     ret
 
-; void initial_enter_usermode(uint64_t rip, uint64_t rsp, uint64_t cr3)
-global initial_enter_usermode
-initial_enter_usermode:
-    mov rcx, rdi
-    mov rsp, rsi
-    mov cr3, rdx
-    mov r11, 0x2 ; TODO: Enable interrupts on entering usermode when implemented
+global enter_usermode
+enter_usermode:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+
+    ; rip, cr3, and rsp are all that remains
+    pop rcx ; pop rip into rcx, restored by sysret
+
+    pop r11 ; Use r11 for scratch since sysret clobbers it
+    mov cr3, r11
+
+    mov r11, 0x1b
+    mov ds, r11
+    pop rsp
+    mov r11, 0x202
     o64 sysret
 
-extern current
 extern do_syscall
-extern __kernel_stack_top
+extern __kernelstack
 syscall_entry:
     ; Switch from user to kernel stack
+    cli
     mov rbp, 0
-    mov rsp, __kernel_stack_top
+    mov rsp, __kernelstack
 
     ; Construct struct regs on stack
     push rcx ; syscall sets rcx to the userspace rip
@@ -87,5 +108,6 @@ syscall_entry:
     pop rax
 
     pop rcx ; Pop rip into rcx, sysret will set rip = rcx
+    mov r11, 0x202 ; Re-enable interrupts on return to usermode
 
     o64 sysret

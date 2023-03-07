@@ -13,8 +13,7 @@
 #define USER_STACK_START 0x7ffffffde000
 #define USER_STACK_PAGES 32
 
-#define KERNEL_STACK_START 0xffffff0000000000
-#define KERNEL_STACK_PAGES 32
+#define KERNEL_STACK_BYTES 4096
 
 void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 {
@@ -24,15 +23,6 @@ void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
         uint64_t pg_start = (ph->p_vaddr + (i * PAGE_SIZE));
         vmm_map_page(mm, pg_start, frame);
         memcpy((void *)pg_start, ((char *)elf) + ph->p_offset, ph->p_filesz);
-    }
-}
-
-void add_stack(struct task_struct *task, uint64_t start, uint64_t pages)
-{
-    for (int i = 0; i < USER_STACK_PAGES; i++) {
-        uint64_t off = i * PAGE_SIZE;
-        uint64_t frame = pmm_alloc();
-        vmm_map_page(&task->mm, USER_STACK_START + off, frame);
     }
 }
 
@@ -56,17 +46,18 @@ struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
     for (int i = 0; i < ehdr->e_phnum; i++) {
         Elf64_Phdr *ph = ph_arr + i;
 
-        if (ph->p_type == PT_LOAD) {
+        if (ph->p_type == PT_LOAD)
             map_segment(&task->mm, buf, ph);
-        }
     }
     task->regs.rip = ehdr->e_entry;
 
     /* Done mapping ELF sections */
     free(buf);
 
-    add_stack(task, USER_STACK_START, USER_STACK_PAGES);
+    anon_mmap(&task->mm, USER_STACK_START, USER_STACK_PAGES);
     task->regs.rsp = USER_STACK_START;
+
+    task->kernel_stack = kmalloc(KERNEL_STACK_BYTES);
 
     switch_cr3(old_cr3);
 

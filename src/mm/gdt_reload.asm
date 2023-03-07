@@ -2,6 +2,7 @@ global flush_gdt
 
 ; rdi = uint32 code
 ; rsi = uint32 data
+; rdx = uint32 tss
 bits 64
 flush_gdt:
     push rbp
@@ -28,6 +29,8 @@ longjmp_target:
     mov ss, rsi
     mov gs, rsi
     mov fs, rsi
+
+    ltr dx
 
     leave
     ret

@@ -24,7 +24,7 @@ isr_common:
     pop r10
     pop r11
 
-    add esp, 8 ; IRQ info field
+    add rsp, 8 ; IRQ info field
     iretq
 
 %macro isr_err_stub 1

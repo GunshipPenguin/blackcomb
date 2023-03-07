@@ -8,7 +8,7 @@
 #include "regs.h"
 
 struct task_struct {
-    uint64_t kernel_stack;
+    void *kernel_stack;
     struct regs regs;
     struct mm mm;
 

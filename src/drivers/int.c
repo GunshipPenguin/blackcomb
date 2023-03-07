@@ -70,6 +70,8 @@ __attribute__((aligned(0x10))) static struct idt_entry idt[IDT_MAX_DESCRIPTORS];
 static int vectors[IDT_MAX_DESCRIPTORS];
 extern void *isr_stub_table[];
 
+void *__interrupt_stack;
+
 static inline void io_wait(void)
 {
     outb(0x80, 0);
