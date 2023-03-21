@@ -1,9 +1,9 @@
 #include "sched.h"
 #include "exec.h"
 #include "ext2.h"
+#include "gdt.h"
 #include "kmalloc.h"
 #include "string.h"
-#include "gdt.h"
 
 uint64_t __kernelstack;
 
@@ -23,38 +23,34 @@ void schedule()
 void switch_to(struct task_struct *t)
 {
     __kernelstack = (uint64_t)t->kernel_stack;
-    __tss.rsp0 = (uint64_t) t->kernel_stack;
+    __tss.rsp0 = (uint64_t)t->kernel_stack;
     struct regs *r = &t->regs;
 
-    asm volatile (
-            "pushq %0\n"
-            "pushq %1\n"
-            "pushq %2\n"
-            "pushq %3\n"
-            "pushq %4\n"
-            "pushq %5\n"
-            "pushq %6\n"
-            "pushq %7\n"
-            "pushq %8\n"
-            "pushq %9\n"
-            "pushq %10\n"
-            "pushq %11\n"
-            "pushq %12\n"
-            "pushq %13\n"
-            "pushq %14\n"
-            "pushq %15\n"
-            "pushq %16\n"
-            "pushq %17\n"
-            "jmp enter_usermode"
-            :
-            : "rm"(r->rsp), "rm"(t->mm.p4), "rm"(r->rip),
-              "rm"(r->rax), "rm"(r->rbx), "rm"(r->rcx),
-              "rm"(r->rdx), "rm"(r->rdi), "rm"(r->rsi),
-              "rm"(r->rbp), "rm"(r->r8), "rm"(r->r9),
-              "rm"(r->r10), "rm"(r->r11), "rm"(r->r12),
-              "rm"(r->r13), "rm"(r->r14), "rm"(r->r15)
-            : "rsp");
-
+    asm volatile("pushq %0\n"
+                 "pushq %1\n"
+                 "pushq %2\n"
+                 "pushq %3\n"
+                 "pushq %4\n"
+                 "pushq %5\n"
+                 "pushq %6\n"
+                 "pushq %7\n"
+                 "pushq %8\n"
+                 "pushq %9\n"
+                 "pushq %10\n"
+                 "pushq %11\n"
+                 "pushq %12\n"
+                 "pushq %13\n"
+                 "pushq %14\n"
+                 "pushq %15\n"
+                 "pushq %16\n"
+                 "pushq %17\n"
+                 "jmp enter_usermode"
+                 :
+                 : "rm"(r->rsp), "rm"(t->mm.p4), "rm"(r->rip), "rm"(r->rax), "rm"(r->rbx),
+                   "rm"(r->rcx), "rm"(r->rdx), "rm"(r->rdi), "rm"(r->rsi), "rm"(r->rbp),
+                   "rm"(r->r8), "rm"(r->r9), "rm"(r->r10), "rm"(r->r11), "rm"(r->r12), "rm"(r->r13),
+                   "rm"(r->r14), "rm"(r->r15)
+                 : "rsp");
 }
 
 void start_init(struct ext2_fs *fs)

@@ -43,7 +43,8 @@ encode_gdt_entry(uint8_t *target, uint32_t base, uint32_t limit, uint8_t access_
     target[6] |= (flags << 4);
 }
 
-void encode_tss_gdt_entry(uint8_t *target, uint64_t base, uint32_t limit, uint8_t access_byte, uint8_t flags)
+void encode_tss_gdt_entry(
+    uint8_t *target, uint64_t base, uint32_t limit, uint8_t access_byte, uint8_t flags)
 {
     /* All fields are the same except base, which is extended to 64 bits */
     encode_gdt_entry(target, 0, limit, access_byte, flags);
@@ -93,7 +94,7 @@ void gdt_init()
 
     /* TSS */
     memset(&__tss, 0, sizeof(__tss));
-    encode_tss_gdt_entry((uint8_t *) (gdt + 5), (uint64_t) &__tss, sizeof(__tss), 0x89, 0);
+    encode_tss_gdt_entry((uint8_t *)(gdt + 5), (uint64_t)&__tss, sizeof(__tss), 0x89, 0);
 
     load_gdt();
 }

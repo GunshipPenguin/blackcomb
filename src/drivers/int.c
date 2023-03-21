@@ -96,7 +96,7 @@ void isr_main_entry(struct isr_ctx *ctx)
     if (vec == 0xE)
         panic("Page fault");
 
-    printf("Interrupt %d, error %d\n", vec, err);
+//    printf("Interrupt %d, error %d\n", vec, err);
     send_eoi(vec);
 }
 

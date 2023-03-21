@@ -72,11 +72,11 @@ syscall_entry:
     ; Switch to kernel stack
     mov rbp, 0
     mov rsp, r11
-    mov rsp, __kernelstack
+    mov rsp, [__kernelstack]
 
     ; Construct struct regs on scratch stack
-    push rcx ; syscall sets rcx to the userspace rip
-
+    push qword [rsp_scratch]
+    push rcx ; (rip) syscall sets rcx to the userspace rip
     push rax
     push rbx
     push rcx
@@ -84,7 +84,6 @@ syscall_entry:
     push rdi
     push rsi
     push rbp
-    push qword 0  ; TODO: Get RSP somehow
     push r8
     push r9
     push r10
@@ -94,7 +93,6 @@ syscall_entry:
     push r14
     push r15
 
-    ; First arg to do_syscall
     mov rdi, rsp
     call do_syscall
 
@@ -106,10 +104,6 @@ syscall_entry:
     pop r10
     pop r9
     pop r8
-
-    ; TODO pop rsp
-    pop r11 ; pop into scratch space for now
-
     pop rbp
     pop rsi
     pop rdi
@@ -119,7 +113,7 @@ syscall_entry:
     pop rax
 
     pop rcx ; Pop rip into rcx, sysret will set rip = rcx
-    mov r11, 0x202 ; Re-enable interrupts on return to usermode
+    pop rsp ; Switch back to userspace stack
 
-    mov rsp, [rsp_scratch] ; Switch back to userspace stack
+    mov r11, 0x202 ; Re-enable interrupts on return to usermode
     o64 sysret

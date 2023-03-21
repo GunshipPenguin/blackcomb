@@ -202,13 +202,6 @@ void mm_add_kernel_mappings(struct mm *mm)
     /* Map all physical memory at 0xffff888000000000 */
     vmm_map_range(mm, 0xffff888000000000, 0, 512);
 
-    /* Map bootstrap / syscall kernel stack at 0xffffff0000000000 */
-    extern void *__kernel_stack_top;
-    vmm_map_range(mm, 0xffffff0000000000, (uint64_t)V_TO_P_STATIC(&__kernel_stack_top), 8);
-
-    /* Map interrupt stack at 0xffffff8000000000 */
-    anon_mmap(mm, 0xffffff8000000000, 16); 
-
     /* Kernel heap is shared between all struct mm's */
     uint64_t brk_ndx = P4_NDX(KERNEL_BRK_START);
     p4_set_entry(mm, brk_ndx, p4_get_entry(&kernel_mm, brk_ndx));
