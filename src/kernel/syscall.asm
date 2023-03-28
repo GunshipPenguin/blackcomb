@@ -30,8 +30,8 @@ syscall_enable:
 
     ret
 
-global enter_usermode
-enter_usermode:
+global usermode_tramp 
+usermode_tramp:
     pop r15
     pop r14
     pop r13

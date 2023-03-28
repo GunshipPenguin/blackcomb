@@ -57,7 +57,8 @@ struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
     anon_mmap(&task->mm, USER_STACK_START, USER_STACK_PAGES);
     task->regs.rsp = USER_STACK_START;
 
-    task->kernel_stack = kmalloc(KERNEL_STACK_BYTES);
+    task->kernel_stack_end = kmalloc(KERNEL_STACK_BYTES);
+    task->kernel_stack_start = ((char *) task->kernel_stack_end) + KERNEL_STACK_BYTES;
 
     switch_cr3(old_cr3);
 

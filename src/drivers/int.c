@@ -1,9 +1,12 @@
 #include "io.h"
 
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "sched.h"
 #include "printf.h"
 #include "util.h"
 #include "vgaterm.h"
-#include <stdint.h>
 
 #define PIC1_REMAP_BASE 32
 #define PIC2_REMAP_BASE 40
@@ -96,8 +99,15 @@ void isr_main_entry(struct isr_ctx *ctx)
     if (vec == 0xE)
         panic("Page fault");
 
+    bool switched;
+    if (vec == 0x20)
+        switched = sched_maybe_preempt();
+
 //    printf("Interrupt %d, error %d\n", vec, err);
     send_eoi(vec);
+
+    if (switched)
+        enter_usermode();
 }
 
 static void idt_set_descriptor(uint8_t vector, void *isr, uint8_t attr)

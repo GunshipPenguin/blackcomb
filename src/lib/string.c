@@ -27,24 +27,23 @@ char *strcpy(char *dest, const char *src)
 
 int strcmp(const char *s1, const char *s2)
 {
-    int res = 0;
-    int i = 0;
-    while (s1[i] != '\0' && s2[i] != '\0')
-        res += s1[i] - s2[i];
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
 
-    return res;
+    return *((const unsigned char *)s1) - *((const unsigned char *)s2);
 }
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
-    int res = 0;
-    int i = 0;
-    while (s1[i] != '\0' && s2[i] != '\0' && i < n) {
-        res += s1[i] - s2[i];
-        i++;
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+        n--;
     }
 
-    return res;
+    return n == 0 ? 0 : *((const unsigned char *)s1) - *((const unsigned char *)s2);
 }
 
 void *memset(void *s, int c, size_t n)
