@@ -11,17 +11,6 @@ uint64_t __kernelstack;
 
 struct task_struct *current;
 
-struct task_struct *tasklist_end;
-struct task_struct *tasklist_start;
-
-void schedule()
-{
-    struct task_struct *t = tasklist_start;
-    tasklist_end->next = t;
-    tasklist_end = t;
-    tasklist_start = tasklist_start->next;
-}
-
 void switch_to(struct task_struct *t)
 {
     current = t;
@@ -59,36 +48,13 @@ void enter_usermode()
                  : "rsp");
 }
 
-void rotate_current()
-{
-    tasklist_start = tasklist_start->next;
-    tasklist_start->prev = NULL;
-
-    tasklist_end->next = current;
-    current->prev = tasklist_end;
-    current->next = NULL;
-    tasklist_end = current;
-    current = tasklist_start;
-}
-
 void insert_proc(struct task_struct *t)
 {
-    t->prev = tasklist_end;
-    t->next = NULL;
-    tasklist_end->next = t;
-    tasklist_end = t;
-}
+    t->next = current->next;
+    t->prev = current;
 
-void add_test_proc(struct ext2_fs *fs)
-{
-    struct ext2_ino *in;
-    ext2_namei(fs, &in, "/process");
-    struct task_struct *proc = task_from_elf(fs, in);
-
-    proc->pid = 2;
-    proc->alive_ticks = 0;
-
-    insert_proc(proc);
+    current->next->prev = t;
+    current->next = t;
 }
 
 void start_init(struct ext2_fs *fs)
@@ -100,15 +66,16 @@ void start_init(struct ext2_fs *fs)
     init->pid = 1;
     init->alive_ticks = 0;
 
-    init->prev = NULL;
-    init->next = NULL;
-    tasklist_start = init;
-    tasklist_end = init;
-
-    add_test_proc(fs);
+    init->next = init;
+    init->prev = init;
 
     switch_to(init);
     enter_usermode();
+}
+
+void sched_vfork(struct task_struct *task)
+{
+    struct task_struct *new = kmalloc(sizeof(struct task_struct));
 }
 
 bool sched_maybe_preempt()
@@ -116,11 +83,10 @@ bool sched_maybe_preempt()
     if (current->alive_ticks < PREEMPT_TICK_COUNT)
         goto out;
 
-    printf("Preempting process %d\n", current->pid);
-    rotate_current();
+    printf("preempting process %d\n", current->pid);
     current->alive_ticks = 0;
 
-    switch_to(current);
+    switch_to(current->next);
     printf("new current pid is %d\n", current->pid);
     return true;
 

@@ -29,5 +29,6 @@ void start_init(struct ext2_fs *fs);
 void switch_to(struct task_struct *t);
 
 bool sched_maybe_preempt();
+void sched_vfork();
 
 #endif /* __SCHED_H__ */

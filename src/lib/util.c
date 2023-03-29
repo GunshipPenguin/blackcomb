@@ -1,9 +1,14 @@
 #include "util.h"
 #include "printf.h"
 
-void panic(char *s)
+void panic(char *s, ...)
 {
-    printf("%s\n", s);
+    va_list args;
+    va_start(args, s);
+
+    vprintf(s, args);
+    printf("\n");
+
     for (;;) {
     }
 }
