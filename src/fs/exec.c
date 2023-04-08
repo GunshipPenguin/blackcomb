@@ -10,11 +10,6 @@
 #include "util.h"
 #include "vmm.h"
 
-#define USER_STACK_START 0x7ffffffde000
-#define USER_STACK_PAGES 32
-
-#define KERNEL_STACK_BYTES 4096
-
 void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 {
     for (int i = 0; i < DIV_CEIL(ph->p_memsz, PAGE_SIZE); i++) {
@@ -54,11 +49,10 @@ struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
     /* Done mapping ELF sections */
     free(buf);
 
-    anon_mmap(&task->mm, USER_STACK_START, USER_STACK_PAGES);
-    task->regs.rsp = USER_STACK_START;
+    anon_mmap(&task->mm, USER_STACK_BASE, USER_STACK_PAGES);
+    task->regs.rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
 
-    task->kernel_stack_end = kmalloc(KERNEL_STACK_BYTES);
-    task->kernel_stack_start = ((char *) task->kernel_stack_end) + KERNEL_STACK_BYTES;
+    anon_mmap(&task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES);
 
     switch_cr3(old_cr3);
 

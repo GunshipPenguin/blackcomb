@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "sched.h"
 #include "printf.h"
+#include "sched.h"
 #include "util.h"
 #include "vgaterm.h"
 
@@ -103,7 +103,7 @@ void isr_main_entry(struct isr_ctx *ctx)
     if (vec == 0x20)
         switched = sched_maybe_preempt();
 
-//    printf("Interrupt %d, error %d\n", vec, err);
+    //    printf("Interrupt %d, error %d\n", vec, err);
     send_eoi(vec);
 
     if (switched)

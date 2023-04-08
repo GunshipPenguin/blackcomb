@@ -11,9 +11,6 @@
 struct task_struct {
     uint32_t pid;
 
-    void *kernel_stack_start;
-    void *kernel_stack_end;
-
     struct regs regs;
     struct mm mm;
 
@@ -29,6 +26,6 @@ void start_init(struct ext2_fs *fs);
 void switch_to(struct task_struct *t);
 
 bool sched_maybe_preempt();
-void sched_vfork();
+void sched_fork();
 
 #endif /* __SCHED_H__ */

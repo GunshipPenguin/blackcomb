@@ -71,7 +71,6 @@ syscall_entry:
 
     ; Switch to kernel stack
     mov rbp, 0
-    mov rsp, r11
     mov rsp, [__kernelstack]
 
     ; Construct struct regs on scratch stack

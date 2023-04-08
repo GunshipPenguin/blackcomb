@@ -24,9 +24,9 @@ void sys_wait(int *wstatus)
     panic("sys_wait not implemented");
 }
 
-void sys_vfork(void)
+void sys_fork(void)
 {
-    sched_vfork(current);
+    sched_fork(current);
 }
 
 void sys_exec(const char *pathname)
@@ -50,26 +50,26 @@ void do_syscall(const struct regs *regs)
      */
 
     switch (regs->rax) {
-        case SYS_READ:
-            sys_read((int) regs->rdi, (void *) regs->rsi, (size_t) regs->rdx);
-            break;
-        case SYS_WRITE:
-            sys_write((int) regs->rdi, (void *) regs->rsi, (size_t) regs->rdx);
-            break;
-        case SYS_WAIT:
-            sys_wait((int *) regs->rdi);
-            break;
-        case SYS_EXEC:
-            sys_exec((const char *) regs->rdi);
-            break;
-        case SYS_VFORK:
-            sys_fork();
-            break;
-        case SYS_EXIT:
-            sys_exit((int) regs->rdi);
-            break;
-        default:
-            panic("syscall %d not implemented\n", regs->rax);
+    case SYS_READ:
+        sys_read((int)regs->rdi, (void *)regs->rsi, (size_t)regs->rdx);
+        break;
+    case SYS_WRITE:
+        sys_write((int)regs->rdi, (void *)regs->rsi, (size_t)regs->rdx);
+        break;
+    case SYS_WAIT:
+        sys_wait((int *)regs->rdi);
+        break;
+    case SYS_EXEC:
+        sys_exec((const char *)regs->rdi);
+        break;
+    case SYS_FORK:
+        sys_fork();
+        break;
+    case SYS_EXIT:
+        sys_exit((int)regs->rdi);
+        break;
+    default:
+        panic("syscall %d not implemented\n", regs->rax);
     }
 
     return;

@@ -4,6 +4,7 @@
 #include "gdt.h"
 #include "kmalloc.h"
 #include "string.h"
+#include "vmm.h"
 
 #define PREEMPT_TICK_COUNT 10
 
@@ -14,8 +15,9 @@ struct task_struct *current;
 void switch_to(struct task_struct *t)
 {
     current = t;
-    __kernelstack = (uint64_t)t->kernel_stack_start;
-    __tss.rsp0 = (uint64_t)t->kernel_stack_start;
+
+    __kernelstack = KERNEL_STACK_START;
+    __tss.rsp0 = KERNEL_STACK_START;
 }
 
 void enter_usermode()
@@ -73,9 +75,15 @@ void start_init(struct ext2_fs *fs)
     enter_usermode();
 }
 
-void sched_vfork(struct task_struct *task)
+void sched_fork(struct task_struct *t)
 {
+    return;
     struct task_struct *new = kmalloc(sizeof(struct task_struct));
+
+    //    new->mm = mm_dupe(t->mm);
+    new->regs = t->regs;
+
+    insert_proc(new);
 }
 
 bool sched_maybe_preempt()
