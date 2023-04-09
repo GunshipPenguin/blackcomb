@@ -26,27 +26,6 @@ void switch_cr3(uint64_t addr)
     asm volatile("mov %0, %%cr3" : : "r"(addr));
 }
 
-void vmm_map_range(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages)
-{
-    if ((virt & PAGE_MASK) || (phys & PAGE_MASK))
-        panic("mapping is not paged aligned");
-
-    for (int pg = 0; pg < npages; pg++) {
-        uint64_t off = pg * PAGE_SIZE;
-        vmm_map_page(mm, virt + off, phys + off);
-    }
-}
-
-void vmm_unmap_range(struct mm *mm, uint64_t virt, uint64_t npages)
-{
-    if (virt & PAGE_MASK)
-        panic("mapping is not paged aligned");
-
-    for (int pg = 0; pg < npages; pg++) {
-        vmm_unmap_page(mm, virt + (pg * PAGE_SIZE));
-    }
-}
-
 uint64_t p4_get_entry(struct mm *mm, int i)
 {
     uint64_t *p4_base_addr = P_TO_V(uint64_t, mm->p4);
@@ -105,7 +84,7 @@ uintptr_t vmm_get_phys(struct mm *mm, uintptr_t virt)
     return p1_get_entry(mm, p4_i, p3_i, p2_i, p1_i) & ~PAGE_MASK;
 }
 
-void vmm_map_page(struct mm *mm, uintptr_t virt, uintptr_t phys)
+void vmm_map_page(struct mm *mm, uintptr_t virt, uintptr_t phys, uint64_t flags)
 {
     uint64_t p4_i = P4_NDX(virt);
     uint64_t p3_i = P3_NDX(virt);
@@ -120,25 +99,25 @@ void vmm_map_page(struct mm *mm, uintptr_t virt, uintptr_t phys)
     if (p4_get_entry(mm, p4_i) == 0) {
         /* No p3 allocated here, get a free physical page */
         uintptr_t new_p3 = pmm_alloc();
-        uint64_t entry = new_p3 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+        uint64_t entry = new_p3 | flags;
         p4_set_entry(mm, p4_i, entry);
     }
 
     if (p3_get_entry(mm, p4_i, p3_i) == 0) {
         /* No p2 allocated here, get a free physical page */
         uintptr_t new_p2 = pmm_alloc();
-        uint64_t entry = new_p2 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+        uint64_t entry = new_p2 | flags;
         p3_set_entry(mm, p4_i, p3_i, entry);
     }
 
     if (p2_get_entry(mm, p4_i, p3_i, p2_i) == 0) {
         /* No p1 allocated here, get a free physical page */
         uintptr_t new_p1 = pmm_alloc();
-        uint64_t entry = new_p1 | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+        uint64_t entry = new_p1 | flags;
         p2_set_entry(mm, p4_i, p3_i, p2_i, entry);
     }
 
-    p1_set_entry(mm, p4_i, p3_i, p2_i, p1_i, phys | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+    p1_set_entry(mm, p4_i, p3_i, p2_i, p1_i, phys | flags);
 }
 
 void vmm_unmap_page(struct mm *mm, uintptr_t virt)
@@ -185,18 +164,53 @@ out:
     return;
 }
 
-void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages)
+void vmm_map_range(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages, uint64_t prot)
+{
+    if ((virt & PAGE_MASK) || (phys & PAGE_MASK))
+        panic("mapping is not paged aligned");
+
+    for (int pg = 0; pg < npages; pg++) {
+        uint64_t off = pg * PAGE_SIZE;
+        vmm_map_page(mm, virt + off, phys + off, prot);
+    }
+}
+
+void vmm_unmap_range(struct mm *mm, uint64_t virt, uint64_t npages)
+{
+    if (virt & PAGE_MASK)
+        panic("mapping is not paged aligned");
+
+    for (int pg = 0; pg < npages; pg++) {
+        vmm_unmap_page(mm, virt + (pg * PAGE_SIZE));
+    }
+}
+
+uint64_t prot_to_x86_prot(uint64_t prot)
+{
+    uint64_t ret = 0;
+
+    if (prot & PAGE_PROT_WRITE)
+        ret |= PAGE_WRITE;
+
+    return ret;
+}
+
+void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages, uint64_t prot, bool user)
 {
     if (start & PAGE_MASK)
         panic("mmap is not page aligned");
 
+    uint64_t flags = prot_to_x86_prot(prot) | (user ? PAGE_USER : 0) | PAGE_PRESENT;
     for (int i = 0; i < pages; i++) {
         uint64_t off = i * PAGE_SIZE;
         uint64_t frame = pmm_alloc();
-        vmm_map_page(mm, start + off, frame);
+        vmm_map_page(mm, start + off, frame, flags);
     }
 
     struct vm_area *area = kmalloc(sizeof(struct vm_area));
+    area->prot = prot;
+    area->user = user;
+
     area->start = start;
     area->pages = pages;
     area->prev = NULL;
@@ -206,6 +220,16 @@ void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages)
         mm->vm_areas->prev = area;
 
     mm->vm_areas = area;
+}
+
+void anon_mmap_user(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot)
+{
+    anon_mmap(mm, start, pages, prot, true);
+}
+
+void anon_mmap_kernel(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot)
+{
+    anon_mmap(mm, start, pages, prot, false);
 }
 
 void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages)
@@ -221,7 +245,7 @@ void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pa
 
         uint64_t *src_data = P_TO_V(uint64_t, p1_get_entry(src, p4, p3, p2, p1) & ~PAGE_MASK);
         uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
-        memcpy(src_data, dst_data, PAGE_SIZE);
+        memcpy(dst_data, src_data, PAGE_SIZE);
     }
 }
 
@@ -254,7 +278,7 @@ void mm_dupe(struct mm *old, struct mm *new)
 
     struct vm_area *curr = old->vm_areas;
     while (curr) {
-        anon_mmap(new, curr->start, curr->pages);
+        anon_mmap(new, curr->start, curr->pages, curr->prot, curr->user);
         mm_copy_from_mm(new, old, curr->start, curr->pages);
         curr = curr->next;
     }
@@ -267,10 +291,10 @@ void mm_add_kernel_mappings(struct mm *mm)
     mm->brk = KERNEL_BRK_START;
 
     /* Higher half mapping of kernel at 0xffffffff80000000 */
-    vmm_map_range(mm, 0xffffffff80000000, 0, 512);
+    vmm_map_range(mm, 0xffffffff80000000, 0, 512, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
 
     /* Map all physical memory at 0xffff888000000000 */
-    vmm_map_range(mm, 0xffff888000000000, 0, 512);
+    vmm_map_range(mm, 0xffff888000000000, 0, 512, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
 
     /* Kernel heap is shared between all struct mm's */
     uint64_t brk_ndx = P4_NDX(KERNEL_BRK_START);
@@ -286,7 +310,7 @@ void *sbrk(struct mm *mm, intptr_t inc)
 
         for (uint64_t addr = new_map_start; addr < new_map_end; addr += PAGE_SIZE) {
             uint64_t frame = pmm_alloc();
-            vmm_map_page(mm, addr, frame);
+            vmm_map_page(mm, addr, frame, PAGE_WRITE | PAGE_PRESENT);
         }
 
     } else {

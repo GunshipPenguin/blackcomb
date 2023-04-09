@@ -1,14 +1,21 @@
 #ifndef __VMM_H
 #define __VMM_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "defs.h"
 
+#define PAGE_PROT_READ 1<<0
+#define PAGE_PROT_WRITE 1<<1
+
 struct vm_area {
     uint64_t start;
     uint64_t pages;
+
+    bool user;
+    uint8_t prot;
 
     struct vm_area *next;
     struct vm_area *prev;
@@ -40,12 +47,8 @@ extern struct mm kernel_mm;
 
 void switch_cr3(uint64_t addr);
 
-void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages);
-
-void vmm_map_page(struct mm *mm, uintptr_t virt, uintptr_t phys);
-void vmm_unmap_page(struct mm *mm, uintptr_t virt);
-
-uintptr_t vmm_get_phys(struct mm *mm, uintptr_t virt);
+void anon_mmap_user(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot);
+void anon_mmap_kernel(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot);
 
 void *sbrk(struct mm *mm, intptr_t increment);
 

@@ -14,7 +14,7 @@
 
 void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 {
-    anon_mmap(mm, ph->p_vaddr, DIV_CEIL(ph->p_memsz, PAGE_SIZE));
+    anon_mmap_user(mm, ph->p_vaddr, DIV_CEIL(ph->p_memsz, PAGE_SIZE), PAGE_PROT_READ);
     mm_copy_from_buf(mm, ((char *)elf) + ph->p_offset, ph->p_vaddr, ph->p_filesz);
 }
 
@@ -46,10 +46,10 @@ struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
     /* Done mapping ELF sections */
     free(buf);
 
-    anon_mmap(&task->mm, USER_STACK_BASE, USER_STACK_PAGES);
+    anon_mmap_user(&task->mm, USER_STACK_BASE, USER_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
     task->regs.rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
 
-    anon_mmap(&task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES);
+    anon_mmap_kernel(&task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
 
     switch_cr3(old_cr3);
 
