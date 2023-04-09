@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include "exec.h"
 #include "defs.h"
 #include "elf.h"
@@ -12,13 +14,8 @@
 
 void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 {
-    for (int i = 0; i < DIV_CEIL(ph->p_memsz, PAGE_SIZE); i++) {
-        uint64_t frame = pmm_alloc();
-
-        uint64_t pg_start = (ph->p_vaddr + (i * PAGE_SIZE));
-        vmm_map_page(mm, pg_start, frame);
-        memcpy((void *)pg_start, ((char *)elf) + ph->p_offset, ph->p_filesz);
-    }
+    anon_mmap(mm, ph->p_vaddr, DIV_CEIL(ph->p_memsz, PAGE_SIZE));
+    mm_copy_from_buf(mm, ((char *)elf) + ph->p_offset, ph->p_vaddr, ph->p_filesz);
 }
 
 struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)

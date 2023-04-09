@@ -1,13 +1,24 @@
 #ifndef __VMM_H
 #define __VMM_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "defs.h"
 
+struct vm_area {
+    uint64_t start;
+    uint64_t pages;
+
+    struct vm_area *next;
+    struct vm_area *prev;
+};
+
 struct mm {
     uint64_t brk;
     uint64_t p4; /* _physical_ address of the single p4 entry */
+
+    struct vm_area *vm_areas;
 };
 
 extern struct mm kernel_mm;
@@ -39,5 +50,9 @@ uintptr_t vmm_get_phys(struct mm *mm, uintptr_t virt);
 void *sbrk(struct mm *mm, intptr_t increment);
 
 void mm_add_kernel_mappings(struct mm *mm);
+
+void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages);
+void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len);
+void mm_dupe(struct mm *old, struct mm *new);
 
 #endif /* __VMM_H */

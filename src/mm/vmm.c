@@ -2,13 +2,15 @@
 
 #include "defs.h"
 #include "multiboot2.h"
+#include "string.h"
+#include "kmalloc.h"
 #include "pmm.h"
 #include "util.h"
 
-#define P4_NDX(x) ((x >> 39) & 0x1FF)
-#define P3_NDX(x) ((x >> 30) & 0x1FF)
-#define P2_NDX(x) ((x >> 21) & 0x1FF)
-#define P1_NDX(x) ((x >> 12) & 0x1FF)
+#define P4_NDX(x) (((x) >> 39) & 0x1FF)
+#define P3_NDX(x) (((x) >> 30) & 0x1FF)
+#define P2_NDX(x) (((x) >> 21) & 0x1FF)
+#define P1_NDX(x) (((x) >> 12) & 0x1FF)
 
 #define PAGE_PRESENT (1 << 0)
 #define PAGE_WRITE (1 << 1)
@@ -185,11 +187,79 @@ out:
 
 void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages)
 {
+    if (start & PAGE_MASK)
+        panic("mmap is not page aligned");
+
     for (int i = 0; i < pages; i++) {
         uint64_t off = i * PAGE_SIZE;
         uint64_t frame = pmm_alloc();
         vmm_map_page(mm, start + off, frame);
     }
+
+    struct vm_area *area = kmalloc(sizeof(struct vm_area));
+    area->start = start;
+    area->pages = pages;
+    area->prev = NULL;
+    area->next = mm->vm_areas;
+
+    if (mm->vm_areas)
+        mm->vm_areas->prev = area;
+
+    mm->vm_areas = area;
+}
+
+void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages)
+{
+    if (start & PAGE_MASK)
+        panic("copy_physmem: start is not page aligned");
+
+    for (uint64_t pg = 0; pg < pages; pg++) {
+        uint64_t p4 = P4_NDX(start + pg);
+        uint64_t p3 = P3_NDX(start + pg);
+        uint64_t p2 = P2_NDX(start + pg);
+        uint64_t p1 = P1_NDX(start + pg);
+
+        uint64_t *src_data = P_TO_V(uint64_t, p1_get_entry(src, p4, p3, p2, p1) & ~PAGE_MASK);
+        uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
+        memcpy(src_data, dst_data, PAGE_SIZE);
+    }
+}
+
+void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
+{
+    if (start & PAGE_MASK)
+        panic("copy_physmem: start is not page aligned");
+
+    size_t rem = len;
+    uint64_t pg = 0;
+    while (rem > 0) {
+        uint64_t p4 = P4_NDX(start + pg);
+        uint64_t p3 = P3_NDX(start + pg);
+        uint64_t p2 = P2_NDX(start + pg);
+        uint64_t p1 = P1_NDX(start + pg);
+
+        uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
+
+        size_t bytes = len > PAGE_SIZE ? PAGE_SIZE : len;
+        memcpy(dst_data, src, bytes);
+
+        rem -= bytes;
+        pg++;
+    }
+}
+
+void mm_dupe(struct mm *old, struct mm *new)
+{
+    new->brk = old->brk;
+
+    struct vm_area *curr = old->vm_areas;
+    while (curr) {
+        anon_mmap(new, curr->start, curr->pages);
+        mm_copy_from_mm(new, old, curr->start, curr->pages);
+        curr = curr->next;
+    }
+
+    mm_add_kernel_mappings(new);
 }
 
 void mm_add_kernel_mappings(struct mm *mm)

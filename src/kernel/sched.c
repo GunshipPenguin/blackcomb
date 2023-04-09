@@ -77,10 +77,9 @@ void start_init(struct ext2_fs *fs)
 
 void sched_fork(struct task_struct *t)
 {
-    return;
-    struct task_struct *new = kmalloc(sizeof(struct task_struct));
+    struct task_struct *new = kcalloc(1, sizeof(struct task_struct));
 
-    //    new->mm = mm_dupe(t->mm);
+    mm_dupe(&t->mm, &new->mm);
     new->regs = t->regs;
 
     insert_proc(new);

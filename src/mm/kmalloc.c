@@ -1,4 +1,5 @@
 #include "kmalloc.h"
+#include "string.h"
 #include "defs.h"
 #include "util.h"
 #include "vmm.h"
@@ -81,6 +82,15 @@ void *kmalloc(size_t size)
 
     target->in_use = 1;
     return target + 1;
+}
+
+void *kcalloc(size_t nmemb, size_t size) {
+    size_t sz = nmemb * size;
+
+    void *mem = kmalloc(sz);
+    memset(mem, 0, sz);
+
+    return mem;
 }
 
 void free(void *ptr)
