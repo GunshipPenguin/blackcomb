@@ -68,7 +68,8 @@ void region_unset_bit(struct mmap_region *region, size_t i)
 
 void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
 {
-#define OVERLAPS_KERNEL(x) (((x) >= (uint64_t)&__kernel_start_phys) && ((x) < (uint64_t)&__kernel_end_phys))
+#define OVERLAPS_KERNEL(x)                                                                         \
+    (((x) >= (uint64_t)&__kernel_start_phys) && ((x) < (uint64_t)&__kernel_end_phys))
 
     struct multiboot_mmap_entry *entry = mmap->entries;
     size_t i = 0;
@@ -106,16 +107,16 @@ void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
         }
 
         if (OVERLAPS_KERNEL(end)) {
-           end = (uint64_t)&__kernel_start_phys;
-           if (start >= end) /* Implies total overlap */
-               goto next;
+            end = (uint64_t)&__kernel_start_phys;
+            if (start >= end) /* Implies total overlap */
+                goto next;
         }
 
-        regions[i].start = (char *) start;
+        regions[i].start = (char *)start;
         regions[i].pages = (end - start) / PAGE_SIZE;
         i++;
 
-next:
+    next:
         entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
     }
 

@@ -1,8 +1,8 @@
 #include <stddef.h>
 
-#include "exec.h"
 #include "defs.h"
 #include "elf.h"
+#include "exec.h"
 #include "ext2.h"
 #include "kmalloc.h"
 #include "pmm.h"
@@ -39,7 +39,8 @@ void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *fil
     anon_mmap_user(task->mm, USER_STACK_BASE, USER_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
     task->regs.rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
 
-    anon_mmap_kernel(task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
+    anon_mmap_kernel(task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES,
+                     PAGE_PROT_READ | PAGE_PROT_WRITE);
 
     return task;
 }

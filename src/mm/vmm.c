@@ -1,10 +1,10 @@
 #include "vmm.h"
 
 #include "defs.h"
-#include "multiboot2.h"
-#include "string.h"
 #include "kmalloc.h"
+#include "multiboot2.h"
 #include "pmm.h"
+#include "string.h"
 #include "util.h"
 
 #define P4_NDX(x) (((x) >> 39) & 0x1FF)

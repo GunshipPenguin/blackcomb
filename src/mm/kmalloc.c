@@ -1,6 +1,6 @@
 #include "kmalloc.h"
-#include "string.h"
 #include "defs.h"
+#include "string.h"
 #include "util.h"
 #include "vmm.h"
 
@@ -84,7 +84,8 @@ void *kmalloc(size_t size)
     return target + 1;
 }
 
-void *kcalloc(size_t nmemb, size_t size) {
+void *kcalloc(size_t nmemb, size_t size)
+{
     size_t sz = nmemb * size;
 
     void *mem = kmalloc(sz);
