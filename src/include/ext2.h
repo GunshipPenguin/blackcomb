@@ -136,7 +136,9 @@ struct ext2_fs {
     struct ext2_bgd *bgdt;
 };
 
-struct ext2_fs *ext2_mount();
+extern struct ext2_fs *rootfs;
+
+struct ext2_fs *ext2_mount_rootfs();
 void ext2_ls(struct ext2_fs *fs, const char *path);
 void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk);
 void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path);

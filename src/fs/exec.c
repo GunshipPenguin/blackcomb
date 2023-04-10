@@ -18,40 +18,28 @@ void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
     mm_copy_from_buf(mm, ((char *)elf) + ph->p_offset, ph->p_vaddr, ph->p_filesz);
 }
 
-struct task_struct *task_from_elf(struct ext2_fs *fs, struct ext2_ino *file)
+void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *file)
 {
     void *buf = ext2_read_file(fs, file);
     Elf64_Ehdr *ehdr = buf;
-
-    struct task_struct *task = kmalloc(sizeof(struct task_struct));
-    memset(task, 0, sizeof(struct task_struct));
-
-    mm_add_kernel_mappings(&task->mm);
-
-    /* Kernel mappings added, can switch to the userspace page tables now */
-    uint64_t old_cr3;
-    asm volatile("mov %%cr3, %0" : "=rm"(old_cr3) :);
-
-    switch_cr3(task->mm.p4);
+    task->mm = mm_new();
 
     Elf64_Phdr *ph_arr = (Elf64_Phdr *)(((char *)buf) + ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; i++) {
         Elf64_Phdr *ph = ph_arr + i;
 
         if (ph->p_type == PT_LOAD)
-            map_segment(&task->mm, buf, ph);
+            map_segment(task->mm, buf, ph);
     }
     task->regs.rip = ehdr->e_entry;
 
     /* Done mapping ELF sections */
     free(buf);
 
-    anon_mmap_user(&task->mm, USER_STACK_BASE, USER_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
+    anon_mmap_user(task->mm, USER_STACK_BASE, USER_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
     task->regs.rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
 
-    anon_mmap_kernel(&task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
-
-    switch_cr3(old_cr3);
+    anon_mmap_kernel(task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
 
     return task;
 }

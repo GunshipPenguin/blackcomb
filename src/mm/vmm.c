@@ -272,21 +272,7 @@ void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
     }
 }
 
-void mm_dupe(struct mm *old, struct mm *new)
-{
-    new->brk = old->brk;
-
-    struct vm_area *curr = old->vm_areas;
-    while (curr) {
-        anon_mmap(new, curr->start, curr->pages, curr->prot, curr->user);
-        mm_copy_from_mm(new, old, curr->start, curr->pages);
-        curr = curr->next;
-    }
-
-    mm_add_kernel_mappings(new);
-}
-
-void mm_add_kernel_mappings(struct mm *mm)
+void mm_init(struct mm *mm)
 {
     mm->brk = KERNEL_BRK_START;
 
@@ -299,6 +285,34 @@ void mm_add_kernel_mappings(struct mm *mm)
     /* Kernel heap is shared between all struct mm's */
     uint64_t brk_ndx = P4_NDX(KERNEL_BRK_START);
     p4_set_entry(mm, brk_ndx, p4_get_entry(&kernel_mm, brk_ndx));
+}
+
+struct mm *mm_new()
+{
+    void *mm = kcalloc(1, sizeof(struct mm));
+    mm_init(mm);
+    return mm;
+}
+
+struct mm *mm_dupe(struct mm *mm)
+{
+    struct mm *new = mm_new();
+
+    new->brk = mm->brk;
+
+    struct vm_area *curr = mm->vm_areas;
+    while (curr) {
+        anon_mmap(new, curr->start, curr->pages, curr->prot, curr->user);
+        mm_copy_from_mm(new, mm, curr->start, curr->pages);
+        curr = curr->next;
+    }
+
+    return new;
+}
+
+void mm_free(struct mm *mm)
+{
+    return;
 }
 
 void *sbrk(struct mm *mm, intptr_t inc)

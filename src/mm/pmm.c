@@ -68,18 +68,54 @@ void region_unset_bit(struct mmap_region *region, size_t i)
 
 void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
 {
+#define OVERLAPS_KERNEL(x) (((x) >= (uint64_t)&__kernel_start_phys) && ((x) < (uint64_t)&__kernel_end_phys))
+
     struct multiboot_mmap_entry *entry = mmap->entries;
     size_t i = 0;
 
     memset(regions, 0, sizeof(regions));
 
     while ((uintptr_t)entry < (uintptr_t)mmap + mmap->size) {
-        if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
-            regions[i].start = (char *)entry->addr;
-            regions[i].pages = entry->len / PAGE_SIZE;
-            i++;
+        if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
+            goto next;
+
+        uint64_t start = entry->addr;
+        size_t end = start + entry->len;
+
+        /*
+         * If this region overlaps the kernel code/data, poke holes
+         * as needed so we aren't overwriting kernel code.
+         *
+         * Three possibilities:
+         *
+         * |----region----|
+         *       |-------kernel-------|
+         *
+         *        |------region------|
+         * |-----------kernel--------------|
+         *
+         *
+         *          |------region-------|
+         * |------kernel-------|
+         */
+
+        if (OVERLAPS_KERNEL(start)) {
+            start = (uint64_t)&__kernel_end_phys;
+            if (start >= end) /* Implies total overlap */
+                goto next;
         }
 
+        if (OVERLAPS_KERNEL(end)) {
+           end = (uint64_t)&__kernel_start_phys;
+           if (start >= end) /* Implies total overlap */
+               goto next;
+        }
+
+        regions[i].start = (char *) start;
+        regions[i].pages = (end - start) / PAGE_SIZE;
+        i++;
+
+next:
         entry = (struct multiboot_mmap_entry *)((uintptr_t)entry + mmap->entry_size);
     }
 
@@ -110,7 +146,7 @@ void pmm_init_regions()
          * Set bits corresponding to the bitmap itself so pages containing the bitmap are
          * never returned to fulfill an allocation request.
          */
-        for (int j = 0; j < (bmap_size + PAGE_SIZE - 1) / PAGE_SIZE; j++)
+        for (int j = 0; j < DIV_CEIL(bmap_size, PAGE_SIZE); j++)
             region_set_bit(&regions[i], j);
     }
 }

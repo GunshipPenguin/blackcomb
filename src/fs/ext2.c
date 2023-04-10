@@ -11,6 +11,8 @@
 
 #define EXT2_ROOT_INO 2
 
+struct ext2_fs *rootfs;
+
 void read_blk(struct ext2_fs *fs, void *buf, uint32_t boff, uint32_t len)
 {
     ata_read_bytes(buf, boff * fs->block_size, len);
@@ -26,7 +28,7 @@ void ext2_get_inode(struct ext2_fs *fs, struct ext2_ino *buf, int ino)
     ata_read_bytes(buf, off, sizeof(struct ext2_ino));
 }
 
-struct ext2_fs *ext2_mount()
+struct ext2_fs *ext2_mount_rootfs()
 {
     struct ext2_fs *fs = kmalloc(sizeof(struct ext2_fs));
     if (!fs)

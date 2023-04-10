@@ -58,7 +58,7 @@ void kernel_main(uintptr_t mboot_info)
     pmm_init((void *)mboot_info);
     log_ok("Page frame allocator initialized\n");
 
-    mm_add_kernel_mappings(&kernel_mm);
+    mm_init(&kernel_mm);
     log_ok("Kernel page tables initialized\n");
 
     switch_cr3(kernel_mm.p4);
@@ -76,18 +76,18 @@ void kernel_main(uintptr_t mboot_info)
     syscall_enable();
     log_ok("Syscalls enabled\n");
 
-    struct ext2_fs *fs = ext2_mount();
+    rootfs = ext2_mount_rootfs();
     log_ok("Mounted /\n");
 
     printf("Contents of /\n");
-    ext2_ls(fs, "/");
+    ext2_ls(rootfs, "/");
 
     struct ext2_ino *in;
-    ext2_namei(fs, &in, "/file.txt");
-    char *contentbuf = ext2_read_file(fs, in);
+    ext2_namei(rootfs, &in, "/file.txt");
+    char *contentbuf = ext2_read_file(rootfs, in);
     printf("Contents of /file.txt: %s", contentbuf);
     free(contentbuf);
 
     log_info("attempting to exec /init\n");
-    start_init(fs);
+    start_init();
 }

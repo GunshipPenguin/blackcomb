@@ -45,17 +45,19 @@ extern struct mm kernel_mm;
 #define PHYS_MAPPING_START 0xffff888000000000
 #define P_TO_V(type, x) ((type *)(PHYS_MAPPING_START + ((uint64_t)x)));
 
-void switch_cr3(uint64_t addr);
+
+struct mm *mm_dupe(struct mm *mm);
+struct mm *mm_new();
+void mm_init();
+
+void mm_free(struct mm *old);
 
 void anon_mmap_user(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot);
 void anon_mmap_kernel(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot);
+void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len);
 
 void *sbrk(struct mm *mm, intptr_t increment);
 
-void mm_add_kernel_mappings(struct mm *mm);
-
-void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages);
-void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len);
-void mm_dupe(struct mm *old, struct mm *new);
+void switch_cr3(uint64_t addr);
 
 #endif /* __VMM_H */
