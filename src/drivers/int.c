@@ -99,7 +99,7 @@ void isr_main_entry(struct isr_ctx *ctx)
     if (vec == 0xE)
         panic("Page fault");
 
-    bool switched;
+    bool switched = false;
     if (vec == 0x20)
         switched = sched_maybe_preempt();
 

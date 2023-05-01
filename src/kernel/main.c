@@ -58,7 +58,7 @@ void kernel_main(uintptr_t mboot_info)
     pmm_init((void *)mboot_info);
     log_ok("Page frame allocator initialized\n");
 
-    mm_init(&kernel_mm);
+    kernel_mm_init(&kernel_mm);
     log_ok("Kernel page tables initialized\n");
 
     switch_cr3(kernel_mm.p4);
