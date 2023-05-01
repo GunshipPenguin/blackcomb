@@ -41,6 +41,4 @@ void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *fil
 
     anon_mmap_kernel(task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES,
                      PAGE_PROT_READ | PAGE_PROT_WRITE);
-
-    return task;
 }

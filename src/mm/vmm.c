@@ -19,7 +19,23 @@
 
 #define KERNEL_BRK_START 0xFFFFC90000000000
 
+uint64_t kernel_brk = KERNEL_BRK_START;
+
+/*
+ * Standalone struct mm setup to contain kernel mappings (kernel text, kernel heap, mapping of all
+ * physical memory). This is initialized before any other mm infrastructure is setup, so it, and all
+ * VMA structs in it need to be statically allocated here.
+ */
 struct mm kernel_mm;
+
+struct vm_area_li kernel_vma_li;
+struct vm_area kernel_vma;
+
+struct vm_area_li phys_vma_li;
+struct vm_area phys_vma;
+
+struct vm_area_li kernel_heap_vma_li;
+struct vm_area kernel_heap_vma;
 
 void switch_cr3(uint64_t addr)
 {
@@ -164,27 +180,6 @@ out:
     return;
 }
 
-void vmm_map_range(struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages, uint64_t prot)
-{
-    if ((virt & PAGE_MASK) || (phys & PAGE_MASK))
-        panic("mapping is not paged aligned");
-
-    for (int pg = 0; pg < npages; pg++) {
-        uint64_t off = pg * PAGE_SIZE;
-        vmm_map_page(mm, virt + off, phys + off, prot);
-    }
-}
-
-void vmm_unmap_range(struct mm *mm, uint64_t virt, uint64_t npages)
-{
-    if (virt & PAGE_MASK)
-        panic("mapping is not paged aligned");
-
-    for (int pg = 0; pg < npages; pg++) {
-        vmm_unmap_page(mm, virt + (pg * PAGE_SIZE));
-    }
-}
-
 uint64_t prot_to_x86_prot(uint64_t prot)
 {
     uint64_t ret = 0;
@@ -193,6 +188,34 @@ uint64_t prot_to_x86_prot(uint64_t prot)
         ret |= PAGE_WRITE;
 
     return ret;
+}
+
+void mm_insert_vma(struct mm *mm, struct vm_area *vma)
+{
+    struct vm_area_li *li = kmalloc(sizeof(struct vm_area_li));
+
+    li->vma = vma;
+    vma->refcnt++;
+
+    li->prev = NULL;
+    li->next = mm->vm_areas;
+    if (mm->vm_areas)
+        mm->vm_areas->prev = li;
+
+    mm->vm_areas = li;
+}
+
+void vmm_map_range(
+    struct mm *mm, uint64_t virt, uint64_t phys, uint64_t npages, uint64_t prot, bool user)
+{
+    if ((virt & PAGE_MASK) || (phys & PAGE_MASK))
+        panic("mapping is not paged aligned");
+
+    uint64_t flags = prot_to_x86_prot(prot) | (user ? PAGE_USER : 0) | PAGE_PRESENT;
+    for (int pg = 0; pg < npages; pg++) {
+        uint64_t off = pg * PAGE_SIZE;
+        vmm_map_page(mm, virt + off, phys + off, flags);
+    }
 }
 
 void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages, uint64_t prot, bool user)
@@ -207,19 +230,16 @@ void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages, uint64_t prot, boo
         vmm_map_page(mm, start + off, frame, flags);
     }
 
-    struct vm_area *area = kmalloc(sizeof(struct vm_area));
-    area->prot = prot;
-    area->user = user;
+    struct vm_area *vma = kcalloc(1, sizeof(struct vm_area));
 
-    area->start = start;
-    area->pages = pages;
-    area->prev = NULL;
-    area->next = mm->vm_areas;
+    vma->prot = prot;
+    vma->user = user;
+    vma->type = VM_AREA_REG;
 
-    if (mm->vm_areas)
-        mm->vm_areas->prev = area;
+    vma->start = start;
+    vma->pages = pages;
 
-    mm->vm_areas = area;
+    mm_insert_vma(mm, vma);
 }
 
 void anon_mmap_user(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot)
@@ -232,16 +252,36 @@ void anon_mmap_kernel(struct mm *mm, uint64_t start, uint64_t pages, uint8_t pro
     anon_mmap(mm, start, pages, prot, false);
 }
 
+void mm_share_vma(struct mm *dst, struct mm *src, struct vm_area *vma)
+{
+    uint64_t flags = prot_to_x86_prot(vma->prot) | (vma->user ? PAGE_USER : 0) | PAGE_PRESENT;
+    for (int pg = 0; pg < vma->pages; pg++) {
+        uint64_t off = PAGE_SIZE * pg;
+
+        uint64_t p4 = P4_NDX(vma->start + off);
+        uint64_t p3 = P3_NDX(vma->start + off);
+        uint64_t p2 = P2_NDX(vma->start + off);
+        uint64_t p1 = P1_NDX(vma->start + off);
+
+        uint64_t phys = p1_get_entry(src, p4, p3, p2, p1);
+        vmm_map_page(dst, vma->start + off, phys, flags);
+    }
+
+    mm_insert_vma(dst, vma);
+}
+
 void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages)
 {
     if (start & PAGE_MASK)
         panic("copy_physmem: start is not page aligned");
 
     for (uint64_t pg = 0; pg < pages; pg++) {
-        uint64_t p4 = P4_NDX(start + pg);
-        uint64_t p3 = P3_NDX(start + pg);
-        uint64_t p2 = P2_NDX(start + pg);
-        uint64_t p1 = P1_NDX(start + pg);
+        uint64_t off = PAGE_SIZE * pg;
+
+        uint64_t p4 = P4_NDX(start + off);
+        uint64_t p3 = P3_NDX(start + off);
+        uint64_t p2 = P2_NDX(start + off);
+        uint64_t p1 = P1_NDX(start + off);
 
         uint64_t *src_data = P_TO_V(uint64_t, p1_get_entry(src, p4, p3, p2, p1) & ~PAGE_MASK);
         uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
@@ -257,10 +297,12 @@ void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
     size_t rem = len;
     uint64_t pg = 0;
     while (rem > 0) {
-        uint64_t p4 = P4_NDX(start + pg);
-        uint64_t p3 = P3_NDX(start + pg);
-        uint64_t p2 = P2_NDX(start + pg);
-        uint64_t p1 = P1_NDX(start + pg);
+        uint64_t off = PAGE_SIZE * pg;
+
+        uint64_t p4 = P4_NDX(start + off);
+        uint64_t p3 = P3_NDX(start + off);
+        uint64_t p2 = P2_NDX(start + off);
+        uint64_t p1 = P1_NDX(start + off);
 
         uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
 
@@ -272,19 +314,61 @@ void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
     }
 }
 
-void mm_init(struct mm *mm)
+void kernel_mm_init(struct mm *mm)
 {
-    mm->brk = KERNEL_BRK_START;
+    kernel_mm.vm_areas = &kernel_vma_li;
 
     /* Higher half mapping of kernel at 0xffffffff80000000 */
-    vmm_map_range(mm, 0xffffffff80000000, 0, 512, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+    kernel_vma.prot = PAGE_PROT_READ | PAGE_PROT_WRITE;
+    kernel_vma.user = false;
+    kernel_vma.type = VM_AREA_KERNELTEXT;
+    kernel_vma.start = KERNEL_TEXT_BASE;
+    kernel_vma.pages = 512; /* TODO: Be more intelligent than blindly mapping 512 pages */
+    vmm_map_range(mm, kernel_vma.start, 0, kernel_vma.pages, PAGE_PROT_READ | PAGE_PROT_WRITE,
+                  false);
 
-    /* Map all physical memory at 0xffff888000000000 */
-    vmm_map_range(mm, 0xffff888000000000, 0, 512, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+    kernel_vma_li.vma = &kernel_vma;
+    kernel_vma_li.next = &phys_vma_li;
+    kernel_vma_li.prev = NULL;
 
-    /* Kernel heap is shared between all struct mm's */
-    uint64_t brk_ndx = P4_NDX(KERNEL_BRK_START);
-    p4_set_entry(mm, brk_ndx, p4_get_entry(&kernel_mm, brk_ndx));
+    /* Mapping of all physical memory at 0xffff888000000000 */
+    phys_vma.prot = PAGE_PROT_READ | PAGE_PROT_WRITE;
+    phys_vma.user = false;
+    phys_vma.type = VM_AREA_PHYSMEM;
+    phys_vma.start = PHYS_MAPPING_START;
+    phys_vma.pages = 512; /* TODO: Be more intelligent than blindly mapping 512 pages */
+    vmm_map_range(mm, phys_vma.start, 0, phys_vma.pages, PAGE_PROT_READ | PAGE_PROT_WRITE, false);
+
+    phys_vma_li.vma = &phys_vma;
+    phys_vma_li.next = &kernel_heap_vma_li;
+    phys_vma_li.prev = &kernel_vma_li;
+
+    /* Kernel heap */
+    kernel_heap_vma.prot = PAGE_PROT_READ | PAGE_PROT_WRITE;
+    kernel_heap_vma.user = false;
+    kernel_heap_vma.type = VM_AREA_KERNELHEAP;
+    kernel_heap_vma.start = KERNEL_BRK_START;
+    kernel_heap_vma.pages = 32;
+
+    uint64_t flags = prot_to_x86_prot(kernel_heap_vma.prot) | PAGE_PRESENT;
+    for (int i = 0; i < kernel_heap_vma.pages; i++) {
+        uint64_t off = i * PAGE_SIZE;
+        uint64_t frame = pmm_alloc();
+        vmm_map_page(mm, kernel_heap_vma.start + off, frame, flags);
+    }
+
+    kernel_heap_vma_li.vma = &kernel_heap_vma;
+    kernel_heap_vma_li.next = NULL;
+    kernel_heap_vma_li.prev = &phys_vma_li;
+}
+
+void mm_init(struct mm *mm)
+{
+    struct vm_area_li *curr = kernel_mm.vm_areas;
+    while (curr) {
+        mm_share_vma(mm, &kernel_mm, curr->vma);
+        curr = curr->next;
+    }
 }
 
 struct mm *mm_new()
@@ -298,12 +382,23 @@ struct mm *mm_dupe(struct mm *mm)
 {
     struct mm *new = mm_new();
 
-    new->brk = mm->brk;
-
-    struct vm_area *curr = mm->vm_areas;
+    struct vm_area_li *curr = mm->vm_areas;
     while (curr) {
-        anon_mmap(new, curr->start, curr->pages, curr->prot, curr->user);
-        mm_copy_from_mm(new, mm, curr->start, curr->pages);
+        struct vm_area *vma = curr->vma;
+
+        switch (vma->type) {
+        case VM_AREA_REG:
+            anon_mmap(new, vma->start, vma->pages, vma->prot, vma->user);
+            mm_copy_from_mm(new, mm, vma->start, vma->pages);
+            break;
+        case VM_AREA_PHYSMEM:
+        case VM_AREA_KERNELTEXT:
+        case VM_AREA_KERNELHEAP:
+            mm_share_vma(new, mm, vma);
+            break;
+        default:
+            panic("unknown vm_area_type %d", vma->type);
+        }
         curr = curr->next;
     }
 
@@ -312,32 +407,19 @@ struct mm *mm_dupe(struct mm *mm)
 
 void mm_free(struct mm *mm)
 {
+    /* TODO: Implement */
     return;
 }
 
-void *sbrk(struct mm *mm, intptr_t inc)
+void *sbrk(intptr_t inc)
 {
-    if (inc >= 0) {
-        /* Map new pages */
-        uint64_t new_map_start = ALIGNUP(mm->brk, PAGE_SIZE);
-        uint64_t new_map_end = ALIGNUP(mm->brk + inc, PAGE_SIZE);
+    if (inc == 0)
+        panic("sbrk(0), likely kernel bug");
 
-        for (uint64_t addr = new_map_start; addr < new_map_end; addr += PAGE_SIZE) {
-            uint64_t frame = pmm_alloc();
-            vmm_map_page(mm, addr, frame, PAGE_WRITE | PAGE_PRESENT);
-        }
+    kernel_brk += inc;
 
-    } else {
-        /* Unmap newly unused pages */
-        uintptr_t new_unmap_start = ALIGNUP(mm->brk, PAGE_SIZE);
-        uintptr_t new_unmap_end = ALIGNUP(mm->brk + inc, PAGE_SIZE);
+    if (kernel_brk < KERNEL_BRK_START)
+        panic("sbrk brought kernel break to below KERNEL_BRK_START");
 
-        for (int addr = new_unmap_start; addr >= new_unmap_end; addr -= PAGE_SIZE) {
-            pmm_free(vmm_get_phys(mm, addr));
-            vmm_unmap_page(mm, addr);
-        }
-    }
-
-    mm->brk += inc;
-    return (void *)(mm->brk - inc);
+    return (void *)(kernel_brk - inc);
 }

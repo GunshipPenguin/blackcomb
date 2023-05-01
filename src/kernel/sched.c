@@ -24,7 +24,7 @@ void switch_to(struct task_struct *t)
     __tss.rsp0 = KERNEL_STACK_START;
 }
 
-void enter_usermode()
+__attribute__((noreturn)) void enter_usermode()
 {
     struct regs *r = &current->regs;
     asm volatile("pushq %0\n"
@@ -91,7 +91,7 @@ int sched_exec(const char *path, struct task_struct *t)
     ext2_namei(rootfs, &in, path);
     exec_elf(t, rootfs, in);
 
-    return 0;
+    enter_usermode();
 }
 
 int sched_fork(struct task_struct *t)

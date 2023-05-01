@@ -101,13 +101,13 @@ void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
          */
 
         if (OVERLAPS_KERNEL(start)) {
-            start = (uint64_t)&__kernel_end_phys;
+            start = ALIGNUP((uint64_t)&__kernel_end_phys, PAGE_SIZE);
             if (start >= end) /* Implies total overlap */
                 goto next;
         }
 
         if (OVERLAPS_KERNEL(end)) {
-            end = (uint64_t)&__kernel_start_phys;
+            end = ALIGNDOWN((uint64_t)&__kernel_start_phys, PAGE_SIZE);
             if (start >= end) /* Implies total overlap */
                 goto next;
         }

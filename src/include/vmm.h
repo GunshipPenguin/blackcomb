@@ -10,22 +10,34 @@
 #define PAGE_PROT_READ 1<<0
 #define PAGE_PROT_WRITE 1<<1
 
+enum vm_area_type {
+    VM_AREA_REG,
+    VM_AREA_KERNELTEXT,
+    VM_AREA_KERNELHEAP,
+    VM_AREA_PHYSMEM,
+};
+
 struct vm_area {
+    int refcnt;
+    enum vm_area_type type;
+
     uint64_t start;
     uint64_t pages;
 
     bool user;
     uint8_t prot;
+};
 
-    struct vm_area *next;
-    struct vm_area *prev;
+struct vm_area_li {
+    struct vm_area *vma;
+
+    struct vm_area_li *next;
+    struct vm_area_li *prev;
 };
 
 struct mm {
-    uint64_t brk;
     uint64_t p4; /* _physical_ address of the single p4 entry */
-
-    struct vm_area *vm_areas;
+    struct vm_area_li *vm_areas;
 };
 
 extern struct mm kernel_mm;
@@ -56,7 +68,7 @@ void anon_mmap_user(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot)
 void anon_mmap_kernel(struct mm *mm, uint64_t start, uint64_t pages, uint8_t prot);
 void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len);
 
-void *sbrk(struct mm *mm, intptr_t increment);
+void *sbrk(intptr_t increment);
 
 void switch_cr3(uint64_t addr);
 
