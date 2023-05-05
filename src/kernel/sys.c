@@ -4,24 +4,33 @@
 #include "regs.h"
 #include "sched.h"
 #include "sys.h"
+#include "tty.h"
 #include "util.h"
 
-int sys_read(int fd, const void *buf, size_t count)
+int64_t sys_read(int fd, const void *buf, size_t count)
 {
-    panic("sys_read not implemented");
+    switch (fd) {
+    case 0:
+        return tty_read(buf, count);
+    default:
+        panic("sys_read not implemented for fd != 0");
+    }
 }
 
-int sys_write(int fd, const void *buf, size_t count)
+int64_t sys_write(int fd, const void *buf, size_t count)
 {
-    if (fd != 1)
+    switch (fd) {
+    case 1:
+        printf("%.*s", count, buf);
+        return count;
+    default:
         panic("only writes to fd 1 (stdout) are supported");
-
-    printf("%.*s", count, buf);
+    }
 }
 
 int sys_wait(int *wstatus)
 {
-    panic("sys_wait not implemented");
+    sched_wait(current, wstatus);
 }
 
 int sys_fork(void)
@@ -41,8 +50,7 @@ int sys_exit(int status)
 
 void do_syscall(struct regs *regs)
 {
-    current->regs = *regs;
-    printf("syscall %d performed\n", regs->rax);
+    current->regs = regs;
 
     /*
      * syscall args are passed as specified in the sysV ABI: %rdi, %rsi, %rdx,

@@ -8,53 +8,60 @@
 
 #define PREEMPT_TICK_COUNT 10
 
-uint64_t __kernelstack;
+extern uint64_t __init_stack_top;
+uint64_t __current_task_stack;
 
 // 2^32 pids ought to be enough for anyone ;)
 // TODO: Fix this to not collide when it wraps
 uint32_t next_pid;
 
 struct task_struct *current;
+struct task_struct *proc_root;
+
+struct inactive_task_frame {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t rbx;
+
+    uint64_t rbp;
+    uint64_t ret_addr;
+};
+
+struct fork_frame {
+    struct inactive_task_frame itf;
+    struct regs regs;
+};
 
 void switch_to(struct task_struct *t)
 {
+    struct task_struct *current_old = current;
     current = t;
 
-    __kernelstack = KERNEL_STACK_START;
-    __tss.rsp0 = KERNEL_STACK_START;
+    if (current_old->pid == current->pid)
+        panic("kernel bug: switch to same process");
+
+    __current_task_stack = t->sp;
+    __tss.rsp0 = t->sp;
+    switch_cr3(t->mm->p4);
+
+    extern void switch_to_asm(uint64_t new_rsp, uint64_t * put_old_rsp);
+    switch_to_asm(t->sp, &current_old->sp);
 }
 
-__attribute__((noreturn)) void enter_usermode()
+void tree_insert_proc(struct task_struct *parent, struct task_struct *t)
 {
-    struct regs *r = &current->regs;
-    asm volatile("pushq %0\n"
-                 "pushq %1\n"
-                 "pushq %2\n"
-                 "pushq %3\n"
-                 "pushq %4\n"
-                 "pushq %5\n"
-                 "pushq %6\n"
-                 "pushq %7\n"
-                 "pushq %8\n"
-                 "pushq %9\n"
-                 "pushq %10\n"
-                 "pushq %11\n"
-                 "pushq %12\n"
-                 "pushq %13\n"
-                 "pushq %14\n"
-                 "pushq %15\n"
-                 "pushq %16\n"
-                 "pushq %17\n"
-                 "jmp usermode_tramp"
-                 :
-                 : "rm"(r->rsp), "rm"(current->mm->p4), "rm"(r->rip), "rm"(r->rax), "rm"(r->rbx),
-                   "rm"(r->rcx), "rm"(r->rdx), "rm"(r->rdi), "rm"(r->rsi), "rm"(r->rbp),
-                   "rm"(r->r8), "rm"(r->r9), "rm"(r->r10), "rm"(r->r11), "rm"(r->r12), "rm"(r->r13),
-                   "rm"(r->r14), "rm"(r->r15)
-                 : "rsp");
+    t->parent = parent;
+    if (parent->children)
+        t->siblings = parent->children->siblings;
+    else
+        t->siblings = NULL;
+
+    parent->children = t;
 }
 
-void insert_proc(struct task_struct *t)
+void sched_rr_insert_proc(struct task_struct *t)
 {
     t->next = current->next;
     t->prev = current;
@@ -63,23 +70,58 @@ void insert_proc(struct task_struct *t)
     current->next = t;
 }
 
+void sched_rr_remove_proc(struct task_struct *t)
+{
+    t->prev->next = t->next;
+    t->next->prev = t->prev;
+
+    t->next = NULL;
+    t->prev = NULL;
+}
+
+void init_task_stack(struct task_struct *t, struct regs *regs)
+{
+    t->stack_bottom = kcalloc(1, KERNEL_STACK_SIZE);
+    void *stack_top = (((char *)t->stack_bottom) + KERNEL_STACK_SIZE);
+
+    t->sp = (uint64_t)stack_top - sizeof(struct fork_frame);
+    struct fork_frame *ff = (struct fork_frame *)t->sp;
+
+    ff->itf.rbp = 0;
+    extern void pop_regs_and_sysret();
+    ff->itf.ret_addr = (uint64_t)&pop_regs_and_sysret;
+
+    ff->regs = *regs;
+}
+
 void start_init()
 {
     struct ext2_ino *in;
     ext2_namei(rootfs, &in, "/init");
     struct task_struct *init = kcalloc(1, sizeof(struct task_struct));
+    init->regs = kcalloc(1, sizeof(struct regs));
+
     exec_elf(init, rootfs, in);
+    init_task_stack(init, init->regs);
 
     init->pid = 1;
     init->alive_ticks = 0;
 
     init->next = init;
     init->prev = init;
+    init->state = TASK_RUNNING;
 
     next_pid = 1000;
 
-    switch_to(init);
-    enter_usermode();
+    proc_root = init;
+    current = init;
+    __current_task_stack = init->sp;
+    __tss.rsp0 = init->sp;
+    switch_cr3(init->mm->p4);
+
+    uint64_t put_old; /* dummy space */
+    extern void switch_to_asm(uint64_t new_rsp, uint64_t * put_old_rsp);
+    switch_to_asm(init->sp, &put_old);
 }
 
 int sched_exec(const char *path, struct task_struct *t)
@@ -87,40 +129,66 @@ int sched_exec(const char *path, struct task_struct *t)
     mm_free(t->mm);
     t->mm = mm_new();
 
+    printf("%d doing exec\n", t->pid);
     struct ext2_ino *in;
     ext2_namei(rootfs, &in, path);
     exec_elf(t, rootfs, in);
 
-    enter_usermode();
+    switch_cr3(t->mm->p4);
+}
+
+int sched_wait(struct task_struct *t, int *wstatus)
+{
+    panic("unimplemented");
+}
+
+int sched_exit(struct task_struct *t)
+{
+    panic("unimplemented");
 }
 
 int sched_fork(struct task_struct *t)
 {
     struct task_struct *new = kcalloc(1, sizeof(struct task_struct));
+    printf("%d doing fork\n", t->pid);
+
+    new->regs = kcalloc(1, sizeof(struct regs));
+    new->state = TASK_RUNNING;
 
     new->mm = mm_dupe(t->mm);
-    new->regs = t->regs;
     new->pid = next_pid++;
-    new->regs.rax = 0;
 
-    insert_proc(new);
+    struct regs regs = *t->regs;
+    regs.rax = 0;
+
+    init_task_stack(new, &regs);
+    sched_rr_insert_proc(new);
+    tree_insert_proc(t, new);
 
     return new->pid;
 }
 
-bool sched_maybe_preempt()
+void schedule()
 {
-    if (current->alive_ticks < PREEMPT_TICK_COUNT)
-        goto out;
-
-    printf("preempting process %d\n", current->pid);
     current->alive_ticks = 0;
+    if (current == current->next)
+        return;
 
     switch_to(current->next);
-    printf("new current pid is %d\n", current->pid);
-    return true;
+}
 
-out:
-    current->alive_ticks++;
-    return false;
+void schedule_sleep()
+{
+    current->alive_ticks = 0;
+    struct task_struct *next = current->next;
+    sched_rr_remove_proc(current);
+    switch_to(next);
+}
+
+void sched_maybe_preempt()
+{
+    if (current->alive_ticks++ < PREEMPT_TICK_COUNT)
+        return;
+
+    schedule();
 }

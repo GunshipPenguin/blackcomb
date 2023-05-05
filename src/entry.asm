@@ -1,6 +1,5 @@
 extern kernel_main
-extern __kernel_start_phys
-extern __kernel_end_phys
+extern __init_stack_top
 
 %define PAGE_SIZE 4096
 %define PAGE_PRESENT    (1 << 0)
@@ -47,7 +46,7 @@ ALIGN 4
 ;
 ; 0000000000000000-0000000000200000 0000000000200000 -rw     -> Identity map of first 2 Mib
 ; ffff888000000000-ffff888040000000 0000000040000000 -rw     -> Mapping of all physical memory
-; ffffff0000000000-ffffff0000008000 0000000000008000 -rw     -> Kernel stack mapping (.kernelstack)
+; ffffff0000000000-ffffff0000008000 0000000000008000 -rw     -> Kernel bootstrap stack mapping (.initstack)
 ; ffffffff80000000-ffffffff80200000 0000000000200000 -rw     -> Higher half mapping of first 2 MiB
 ;
 ; This is enough to initialize the VMM/PMM and bootstrap further in the C code.
@@ -79,11 +78,9 @@ page_tables:
 .p3_physmem:
     resb PAGE_SIZE
 
-section .kernelstack
-global __kernel_stack_top
+section .initstack
 align PAGE_SIZE
 resb KERNEL_STACK_SIZE
-__kernel_stack_top:
 
 section .text.boot
 bits 32
@@ -228,7 +225,7 @@ long_mode:
     mov gs, ax
     mov ss, ax
 
-    ; Setup stack and jump to C kernel_main
-    mov rsp, __kernel_stack_top
+    ; Setup bootstrap stack and jump to C kernel_main
+    mov rsp, __init_stack_top
     mov rdi, rbx
     call kernel_main

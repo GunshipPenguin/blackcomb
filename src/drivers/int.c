@@ -1,4 +1,5 @@
 #include "io.h"
+#include "ps2.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -92,22 +93,25 @@ void isr_main_entry(struct isr_ctx *ctx)
 {
     uint32_t vec = (ctx->info >> 32) & 0xFFFF;
     uint32_t err = ctx->info & 0xFFFF;
-
-    if (vec == 0xD)
-        panic("General protection fault");
-
-    if (vec == 0xE)
-        panic("Page fault");
-
-    bool switched = false;
-    if (vec == 0x20)
-        switched = sched_maybe_preempt();
-
-    //    printf("Interrupt %d, error %d\n", vec, err);
     send_eoi(vec);
 
-    if (switched)
-        enter_usermode();
+    switch (vec) {
+    case 0x6:
+        panic("Illegal instruction");
+        break;
+    case 0xD:
+        panic("General protection fault");
+        break;
+    case 0xE:
+        panic("Page fault");
+        break;
+    case 0x20:
+        sched_maybe_preempt();
+        break;
+    case 0x21:
+        ps2_key_in();
+        break;
+    }
 }
 
 static void idt_set_descriptor(uint8_t vector, void *isr, uint8_t attr)

@@ -22,7 +22,7 @@ format:
 	clang-format -i $(C_SRCS)
 
 kern.iso: iso/boot/kern.elf
-	grub-mkrescue -o kern.iso iso
+	grub2-mkrescue -o kern.iso iso
 
 iso/boot/kern.elf: out/ $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o iso/boot/kern.elf

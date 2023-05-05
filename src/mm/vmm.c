@@ -18,6 +18,7 @@
 #define PAGE_SIZE_FLAG (1 << 7)
 
 #define KERNEL_BRK_START 0xFFFFC90000000000
+#define KERNEL_BRK_PAGES 128
 
 uint64_t kernel_brk = KERNEL_BRK_START;
 
@@ -294,9 +295,8 @@ void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
     if (start & PAGE_MASK)
         panic("copy_physmem: start is not page aligned");
 
-    size_t rem = len;
     uint64_t pg = 0;
-    while (rem > 0) {
+    while (len > 0) {
         uint64_t off = PAGE_SIZE * pg;
 
         uint64_t p4 = P4_NDX(start + off);
@@ -307,9 +307,10 @@ void mm_copy_from_buf(struct mm *dst, void *src, uint64_t start, size_t len)
         uint64_t *dst_data = P_TO_V(uint64_t, p1_get_entry(dst, p4, p3, p2, p1) & ~PAGE_MASK);
 
         size_t bytes = len > PAGE_SIZE ? PAGE_SIZE : len;
-        memcpy(dst_data, src, bytes);
+        // FIXME: This is a bug lmao (src is fixed and should not be)
+        memcpy(dst_data, src + off, bytes);
 
-        rem -= bytes;
+        len -= bytes;
         pg++;
     }
 }
@@ -348,7 +349,7 @@ void kernel_mm_init(struct mm *mm)
     kernel_heap_vma.user = false;
     kernel_heap_vma.type = VM_AREA_KERNELHEAP;
     kernel_heap_vma.start = KERNEL_BRK_START;
-    kernel_heap_vma.pages = 32;
+    kernel_heap_vma.pages = KERNEL_BRK_PAGES;
 
     uint64_t flags = prot_to_x86_prot(kernel_heap_vma.prot) | PAGE_PRESENT;
     for (int i = 0; i < kernel_heap_vma.pages; i++) {
@@ -420,6 +421,9 @@ void *sbrk(intptr_t inc)
 
     if (kernel_brk < KERNEL_BRK_START)
         panic("sbrk brought kernel break to below KERNEL_BRK_START");
+
+    if (kernel_brk >= (KERNEL_BRK_START + (KERNEL_BRK_PAGES * PAGE_SIZE)))
+        panic("kernel heap exhausted");
 
     return (void *)(kernel_brk - inc);
 }

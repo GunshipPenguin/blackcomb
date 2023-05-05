@@ -1,5 +1,30 @@
 %include "asmdefs.asm"
 
+extern do_syscall
+extern __current_task_stack
+
+; void switch_to_asm(uint64_t new_rsp, uint64_t *put_old_rsp)
+extern switch_to_asm
+switch_to_asm:
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov [rsi], rsp
+    mov rsp, rdi
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+
+    ret
+
 global syscall_enable
 syscall_enable:
     ; Store kernel CS base in STAR [47:32] and user CS base in STAR [63:48]
@@ -30,8 +55,8 @@ syscall_enable:
 
     ret
 
-global usermode_tramp 
-usermode_tramp:
+global pop_regs_and_sysret
+pop_regs_and_sysret:
     pop r15
     pop r14
     pop r13
@@ -48,30 +73,26 @@ usermode_tramp:
     pop rbx
     pop rax
 
-    ; rip, cr3, and rsp are all that remains
+    ; rip and rsp are all that remains
     pop rcx ; pop rip into rcx, restored by sysret
-
-    pop r11 ; Use r11 for scratch since sysret clobbers it
-    mov cr3, r11
+    pop rsp
 
     mov r11, 0x1b
     mov ds, r11
-    pop rsp
     mov r11, 0x202
     o64 sysret
 
 rsp_scratch:
 dq 0
 
-extern do_syscall
-extern __kernelstack
+global syscall_entry
 syscall_entry:
     ; Save rsp in static scratch space
     mov [rsp_scratch], rsp
 
     ; Switch to kernel stack
     mov rbp, 0
-    mov rsp, [__kernelstack]
+    mov rsp, [__current_task_stack]
 
     ; Construct struct regs on scratch stack
     push qword [rsp_scratch]

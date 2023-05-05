@@ -6,9 +6,11 @@
 #include "kmalloc.h"
 #include "pmm.h"
 #include "printf.h"
+#include "ps2.h"
 #include "sched.h"
 #include "string.h"
 #include "syscalls.h"
+#include "tty.h"
 #include "vgaterm.h"
 #include "vmm.h"
 #include <stdarg.h>
@@ -73,20 +75,17 @@ void kernel_main(uintptr_t mboot_info)
     idt_init();
     log_ok("IDT initialized\n");
 
+    ps2_init();
+    log_ok("keyboard initialized\n");
+
+    tty_init();
+    log_ok("tty initialized\n");
+
     syscall_enable();
     log_ok("Syscalls enabled\n");
 
     rootfs = ext2_mount_rootfs();
     log_ok("Mounted /\n");
-
-    printf("Contents of /\n");
-    ext2_ls(rootfs, "/");
-
-    struct ext2_ino *in;
-    ext2_namei(rootfs, &in, "/file.txt");
-    char *contentbuf = ext2_read_file(rootfs, in);
-    printf("Contents of /file.txt: %s", contentbuf);
-    free(contentbuf);
 
     log_info("attempting to exec /init\n");
     start_init();
