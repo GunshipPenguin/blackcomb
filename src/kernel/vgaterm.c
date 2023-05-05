@@ -39,13 +39,12 @@ static void vgaterm_scroll()
 
 static void vgaterm_newline()
 {
-    if (vgaterm_y == VGATERM_HEIGHT) {
+    if (vgaterm_y == VGATERM_HEIGHT - 1)
         vgaterm_scroll();
-        vgaterm_x = 0;
-    } else {
+    else
         vgaterm_y++;
-        vgaterm_x = 0;
-    }
+
+    vgaterm_x = 0;
 }
 
 void vgaterm_putchar(char c)

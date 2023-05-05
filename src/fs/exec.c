@@ -14,8 +14,12 @@
 
 void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 {
-    anon_mmap_user(mm, ph->p_vaddr, DIV_CEIL(ph->p_memsz, PAGE_SIZE), PAGE_PROT_READ);
-    mm_copy_from_buf(mm, ((char *)elf) + ph->p_offset, ph->p_vaddr, ph->p_filesz);
+    uint64_t map_addr = ph->p_vaddr & ~PAGE_MASK;
+    uint64_t map_offset = ph->p_offset & ~PAGE_MASK;
+    uint64_t extraspace = ph->p_vaddr & PAGE_MASK;
+
+    anon_mmap_user(mm, map_addr, DIV_CEIL(ph->p_memsz + extraspace, PAGE_SIZE), PAGE_PROT_READ);
+    mm_copy_from_buf(mm, ((char *)elf) + map_offset, map_addr, ph->p_filesz + extraspace);
 }
 
 void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *file)
@@ -31,14 +35,11 @@ void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *fil
         if (ph->p_type == PT_LOAD)
             map_segment(task->mm, buf, ph);
     }
-    task->regs.rip = ehdr->e_entry;
+    task->regs->rip = ehdr->e_entry;
 
     /* Done mapping ELF sections */
     free(buf);
 
     anon_mmap_user(task->mm, USER_STACK_BASE, USER_STACK_PAGES, PAGE_PROT_READ | PAGE_PROT_WRITE);
-    task->regs.rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
-
-    anon_mmap_kernel(task->mm, KERNEL_STACK_BASE, KERNEL_STACK_PAGES,
-                     PAGE_PROT_READ | PAGE_PROT_WRITE);
+    task->regs->rsp = USER_STACK_BASE + (PAGE_SIZE * USER_STACK_PAGES);
 }

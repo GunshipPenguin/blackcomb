@@ -10,8 +10,13 @@
 struct task_struct {
     uint32_t pid;
 
-    struct regs regs;
+    struct regs *regs;
+
     struct mm *mm;
+
+    // Return value from kcalloc, start sp is this + KERNEL_STACK_SIZE
+    void *stack_bottom;
+    uint64_t sp;
 
     struct task_struct *next;
     struct task_struct *prev;
@@ -24,9 +29,15 @@ extern struct task_struct *current;
 void start_init();
 void switch_to(struct task_struct *t);
 
-bool sched_maybe_preempt();
+void sched_rr_insert_proc(struct task_struct *t);
+void sched_rr_remove_proc(struct task_struct *t);
 
 int sched_fork(struct task_struct *t);
 int sched_exec(const char *path, struct task_struct *t);
+
+void sched_maybe_preempt();
+
+void schedule();
+void schedule_sleep();
 
 #endif /* __SCHED_H__ */

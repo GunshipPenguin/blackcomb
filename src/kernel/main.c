@@ -1,5 +1,7 @@
 #include "ata.h"
+#include "tty.h"
 #include "exec.h"
+#include "ps2.h"
 #include "ext2.h"
 #include "gdt.h"
 #include "int.h"
@@ -72,6 +74,12 @@ void kernel_main(uintptr_t mboot_info)
 
     idt_init();
     log_ok("IDT initialized\n");
+
+    ps2_init();
+    log_ok("keyboard initialized\n");
+
+    tty_init();
+    log_ok("tty initialized\n");
 
     syscall_enable();
     log_ok("Syscalls enabled\n");

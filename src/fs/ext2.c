@@ -11,6 +11,11 @@
 
 #define EXT2_ROOT_INO 2
 
+#define EXT2_NDIR_BLK 12
+#define EXT2_IND_BLK EXT2_NDIR_BLK
+#define EXT2_DIND_BLK (EXT2_IND_BLK + 1)
+#define EXT2_TIND_BLK (EXT2_DIND_BLK + 1)
+
 struct ext2_fs *rootfs;
 
 void read_blk(struct ext2_fs *fs, void *buf, uint32_t boff, uint32_t len)
@@ -53,16 +58,67 @@ struct ext2_fs *ext2_mount_rootfs()
     return fs;
 }
 
-void ext2_get_block(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk)
+int ext2_block_offsets(struct ext2_fs *fs, unsigned int blk, int offsets[4]) {
+    int n = 0;
+    const long ptrs_per_block = fs->block_size / 4;
+
+    const long direct_blocks = EXT2_NDIR_BLK;
+    const long indirect_blocks = ptrs_per_block;
+    const long double_blocks = indirect_blocks * indirect_blocks;
+    const long triple_blocks = double_blocks * double_blocks;
+
+    /* Direct block */
+    if (blk < direct_blocks) {
+        offsets[n++] = blk;
+        goto out;
+    }
+    blk -= direct_blocks;
+
+    /* Single indirect block */
+    if ((blk - direct_blocks) < indirect_blocks) {
+        offsets[n++] = EXT2_IND_BLK;
+        offsets[n++] = blk;
+        goto out;
+    }
+    blk -= indirect_blocks;
+
+    /* Double indirect block */
+    if ((blk - indirect_blocks) < double_blocks) {
+        offsets[n++] = EXT2_DIND_BLK;
+        offsets[n++] = blk / ptrs_per_block;
+        offsets[n++] = blk % ptrs_per_block;
+        goto out;
+    }
+    blk -= double_blocks;
+
+    /* Triple indirect block */
+    if ((blk - double_blocks) < triple_blocks) {
+        offsets[n++] = EXT2_TIND_BLK;
+        offsets[n++] = blk / (ptrs_per_block * ptrs_per_block);
+        offsets[n++] = blk / ptrs_per_block;
+        offsets[n++] = blk % ptrs_per_block;
+        goto out;
+    }
+
+    panic("block too big: %d", blk);
+
+out:
+    return n;
+}
+
+void ext2_get_block(struct ext2_fs *fs, struct ext2_ino *in, void *buf, unsigned int blk)
 {
     if (blk > in->i_blocks)
-        panic("Can't get block at index greater than file size");
+        panic("get block at index greater than file size");
 
-    if (blk > 12)
-        panic("Do you really think I've implemented double and triple indirect blocks at this "
-              "point?");
+    int offsets[4];
+    int n = ext2_block_offsets(fs, blk, offsets);
 
-    read_blk(fs, buf, in->i_block[blk], fs->block_size);
+    uint32_t *ptrs = buf;
+    read_blk(fs, ptrs, in->i_block[offsets[0]], fs->block_size);
+    for (int i = 1; i < n; i++) {
+        read_blk(fs, buf, ptrs[offsets[i]], fs->block_size);
+    }
 }
 
 void ext2_get_blocks(struct ext2_fs *fs, struct ext2_ino *in, char *buf, uint32_t n)

@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "tty.h"
 #include "printf.h"
 #include "regs.h"
 #include "sched.h"
@@ -8,7 +9,10 @@
 
 int sys_read(int fd, const void *buf, size_t count)
 {
-    panic("sys_read not implemented");
+    if (fd != 0)
+        panic("sys_read not implemented for fd != 0");
+
+    wait_tty(buf, count);
 }
 
 int sys_write(int fd, const void *buf, size_t count)
@@ -41,8 +45,8 @@ int sys_exit(int status)
 
 void do_syscall(struct regs *regs)
 {
-    current->regs = *regs;
-    printf("syscall %d performed\n", regs->rax);
+    current->regs = regs;
+//    printf("syscall %d performed\n", regs->rax);
 
     /*
      * syscall args are passed as specified in the sysV ABI: %rdi, %rsi, %rdx,
