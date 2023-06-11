@@ -92,7 +92,6 @@ static void send_eoi(uint8_t irq)
 void isr_main_entry(struct isr_ctx *ctx)
 {
     uint32_t vec = (ctx->info >> 32) & 0xFFFF;
-    uint32_t err = ctx->info & 0xFFFF;
     send_eoi(vec);
 
     switch (vec) {

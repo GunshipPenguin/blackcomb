@@ -116,7 +116,7 @@ enum key {
 };
 
 // clang-format off
-char sc_map[] = {
+unsigned char sc_map[] = {
     /* 00 */  KEY_RESERVED, KEY_F9,        KEY_RESERVED,  KEY_F5,        KEY_F3,        KEY_F1,       KEY_F2,        KEY_F12,
     /* 08 */  KEY_ESC,      KEY_F10,       KEY_F8,        KEY_F6,        KEY_F4,        KEY_TAB,      KEY_GRAVE,     KEY_F2,
     /* 10 */  KEY_RESERVED, KEY_LEFTALT,   KEY_LEFTSHIFT, KEY_RESERVED,  KEY_LEFTCTRL,  KEY_Q,        KEY_1,         KEY_F3,
@@ -152,7 +152,7 @@ char sc_map[] = {
 };
 // clang-format on
 
-char sc_char[256] = {
+unsigned char sc_char[256] = {
     [KEY_A] = 'a',     [KEY_B] = 'b',         [KEY_C] = 'c',      [KEY_D] = 'd', [KEY_E] = 'e',
     [KEY_F] = 'f',     [KEY_G] = 'g',         [KEY_H] = 'h',      [KEY_I] = 'i', [KEY_J] = 'j',
     [KEY_K] = 'k',     [KEY_L] = 'l',         [KEY_M] = 'm',      [KEY_N] = 'n', [KEY_O] = 'o',

@@ -7,7 +7,7 @@
 #include "tty.h"
 #include "util.h"
 
-int64_t sys_read(int fd, const void *buf, size_t count)
+int64_t sys_read(int fd, void *buf, size_t count)
 {
     switch (fd) {
     case 0:
@@ -30,17 +30,17 @@ int64_t sys_write(int fd, const void *buf, size_t count)
 
 int sys_wait(int *wstatus)
 {
-    sched_wait(current, wstatus);
+    return sched_wait(current, wstatus);
 }
 
-int sys_fork(void)
+void sys_fork(void)
 {
     sched_fork(current);
 }
 
 int sys_exec(const char *pathname)
 {
-    sched_exec(pathname, current);
+    return sched_exec(pathname, current);
 }
 
 int sys_exit(int status)
@@ -71,7 +71,11 @@ void do_syscall(struct regs *regs)
         regs->rax = sys_exec((const char *)regs->rdi);
         break;
     case SYS_FORK:
-        regs->rax = sys_fork();
+        /*
+         * fork is kinda funky because we need to set rax in the parent and
+         * child, let the code in sched.h handle that.
+         */
+        sys_fork();
         break;
     case SYS_EXIT:
         regs->rax = sys_exit((int)regs->rdi);

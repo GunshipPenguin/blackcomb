@@ -5,6 +5,7 @@
 #include "kmalloc.h"
 #include "string.h"
 #include "vmm.h"
+#include "util.h"
 
 #define PREEMPT_TICK_COUNT 10
 
@@ -135,6 +136,8 @@ int sched_exec(const char *path, struct task_struct *t)
     exec_elf(t, rootfs, in);
 
     switch_cr3(t->mm->p4);
+
+    return 0;
 }
 
 int sched_wait(struct task_struct *t, int *wstatus)

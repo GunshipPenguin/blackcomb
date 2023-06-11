@@ -1,7 +1,7 @@
 CC=./cross/bin/x86_64-elf-gcc
 AS=nasm
 
-CFLAGS=-mcmodel=kernel -Wall -I src/include -c -ffreestanding -nostdlib -g
+CFLAGS=-mcmodel=kernel -Wall -Werror -I src/include -c -ffreestanding -nostdlib -g
 LDFLAGS=-ffreestanding -nostdlib -T link.lds -g
 ASFLAGS =-f elf64 -I src/include
 

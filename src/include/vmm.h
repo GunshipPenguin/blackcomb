@@ -54,6 +54,7 @@ extern struct mm kernel_mm;
 #define PHYS_MAPPING_START 0xffff888000000000
 #define P_TO_V(type, x) ((type *)(PHYS_MAPPING_START + ((uint64_t)x)));
 
+void kernel_mm_init(struct mm *mm);
 
 struct mm *mm_dupe(struct mm *mm);
 struct mm *mm_new();
