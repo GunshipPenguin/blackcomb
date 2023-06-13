@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "io.h"
 #include "string.h"
 #include "vgaterm.h"
 
@@ -47,6 +48,16 @@ static void vgaterm_newline()
     vgaterm_x = 0;
 }
 
+void vgaterm_set_cursor(int x, int y)
+{
+    uint16_t pos = vgaterm_y * VGATERM_WIDTH + vgaterm_x;
+
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
 void vgaterm_putchar(char c)
 {
     if (c == '\n') {
@@ -61,6 +72,8 @@ void vgaterm_putchar(char c)
             vgaterm_y = 0;
         }
     }
+
+    vgaterm_set_cursor(vgaterm_x, vgaterm_y);
 }
 
 void vgaterm_setcolor(enum vga_color fg, enum vga_color bg)
