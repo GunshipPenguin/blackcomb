@@ -5,6 +5,7 @@
 #include "string.h"
 #include "util.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define SB_START_BYTES 1024
@@ -159,6 +160,7 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
 
         ext2_get_block(fs, *in, dirbuf, 0);
         unsigned int doff = 0;
+        bool found = false;
         while (doff < fs->block_size) {
             struct ext2_dirent *de = (struct ext2_dirent *)(((char *)dirbuf) + doff);
             if (de->inode == 0)
@@ -166,6 +168,7 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
 
             if (strncmp(comp, de->name, de->name_len) == 0) {
                 ext2_get_inode(fs, *in, de->inode);
+                found = true;
                 break;
             }
 
@@ -173,6 +176,9 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
             doff += de->rec_len;
             continue;
         }
+
+        if (!found)
+            panic("path %s does not exist", path);
     }
 }
 

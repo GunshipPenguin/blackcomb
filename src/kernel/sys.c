@@ -33,9 +33,9 @@ int sys_wait(int *wstatus)
     return sched_wait(current, wstatus);
 }
 
-void sys_fork(void)
+int sys_fork(void)
 {
-    sched_fork(current);
+    return sched_fork(current);
 }
 
 int sys_exec(const char *pathname)
@@ -45,7 +45,7 @@ int sys_exec(const char *pathname)
 
 int sys_exit(int status)
 {
-    panic("sys_exit not implemented");
+    return sched_exit(current, status);
 }
 
 void do_syscall(struct regs *regs)
@@ -71,11 +71,7 @@ void do_syscall(struct regs *regs)
         regs->rax = sys_exec((const char *)regs->rdi);
         break;
     case SYS_FORK:
-        /*
-         * fork is kinda funky because we need to set rax in the parent and
-         * child, let the code in sched.h handle that.
-         */
-        sys_fork();
+        regs->rax = sys_fork();
         break;
     case SYS_EXIT:
         regs->rax = sys_exit((int)regs->rdi);

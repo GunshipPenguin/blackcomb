@@ -25,8 +25,13 @@ pub fn build(b: *std.build.Builder) void {
     init.setBuildMode(mode);
     init.install();
 
-    const shell = b.addExecutable("shell", "src/shell.zig");
-    shell.setTarget(target);
-    shell.setBuildMode(mode);
-    shell.install();
+    const sh = b.addExecutable("sh", "src/sh.zig");
+    sh.setTarget(target);
+    sh.setBuildMode(mode);
+    sh.install();
+
+    const helloworld = b.addExecutable("helloworld", "src/helloworld.zig");
+    helloworld.setTarget(target);
+    helloworld.setBuildMode(mode);
+    helloworld.install();
 }

@@ -49,7 +49,7 @@ void banner()
 {
     vgaterm_clear();
     vgaterm_setcolor(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK);
-    printf("> Blackcomb\n");
+    printf(">>> Blackcomb 0.0.1\n");
     vgaterm_setcolor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 }
 

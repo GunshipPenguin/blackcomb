@@ -4,8 +4,8 @@
 #include "gdt.h"
 #include "kmalloc.h"
 #include "string.h"
-#include "vmm.h"
 #include "util.h"
+#include "vmm.h"
 
 #define PREEMPT_TICK_COUNT 10
 
@@ -55,9 +55,9 @@ void tree_insert_proc(struct task_struct *parent, struct task_struct *t)
 {
     t->parent = parent;
     if (parent->children)
-        t->siblings = parent->children->siblings;
+        t->sibling = parent->children->sibling;
     else
-        t->siblings = NULL;
+        t->sibling = NULL;
 
     parent->children = t;
 }
@@ -130,7 +130,6 @@ int sched_exec(const char *path, struct task_struct *t)
     mm_free(t->mm);
     t->mm = mm_new();
 
-    printf("%d doing exec\n", t->pid);
     struct ext2_ino *in;
     ext2_namei(rootfs, &in, path);
     exec_elf(t, rootfs, in);
@@ -142,18 +141,45 @@ int sched_exec(const char *path, struct task_struct *t)
 
 int sched_wait(struct task_struct *t, int *wstatus)
 {
-    panic("unimplemented");
+    struct task_struct *child;
+
+retry:
+    child = t->children;
+    while (child) {
+        if (child->state == TASK_ZOMBIE)
+            break;
+
+        child = child->sibling;
+    }
+
+    if (!child) {
+        /* No zombie children, sleep until a child exits */
+        current->state = TASK_WAITING;
+        schedule_sleep();
+        goto retry;
+    }
+
+    *wstatus = t->exit_status;
+    return child->pid;
 }
 
-int sched_exit(struct task_struct *t)
+int sched_exit(struct task_struct *t, int status)
 {
-    panic("unimplemented");
+    t->state = TASK_ZOMBIE;
+    t->exit_status = status;
+
+    if (t->parent->state == TASK_WAITING) {
+        sched_rr_insert_proc(t->parent);
+        t->parent->state = TASK_RUNNING;
+    }
+
+    schedule_sleep();
+    return 0; /* Never hit */
 }
 
 int sched_fork(struct task_struct *t)
 {
     struct task_struct *new = kcalloc(1, sizeof(struct task_struct));
-    printf("%d doing fork\n", t->pid);
 
     new->regs = kcalloc(1, sizeof(struct regs));
     new->state = TASK_RUNNING;

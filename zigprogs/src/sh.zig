@@ -1,5 +1,4 @@
 const sys = @import("sys.zig");
-const stdin = 1;
 
 export fn _start() void {
     const ps1 = "$ ";
@@ -14,5 +13,8 @@ export fn _start() void {
         if (sys.fork() == 0) {
             _ = sys.exec(@ptrCast(*const u8, &buf));
         }
+
+        var wstatus: u32 = 0;
+        _ = sys.wait(&wstatus);
     }
 }

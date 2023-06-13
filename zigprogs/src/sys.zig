@@ -62,7 +62,7 @@ pub fn exec(path: *const u8) i64 {
     return @bitCast(i64, syscall1(sys_exec, @ptrToInt(path)));
 }
 
-pub fn exit(status: u32) i64 {
+pub fn exit(status: u64) i64 {
     return @bitCast(i64, syscall1(sys_exit, @bitCast(usize, status)));
 }
 

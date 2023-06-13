@@ -337,7 +337,7 @@ void kernel_mm_init(struct mm *mm)
     phys_vma.user = false;
     phys_vma.type = VM_AREA_PHYSMEM;
     phys_vma.start = PHYS_MAPPING_START;
-    phys_vma.pages = 512; /* TODO: Be more intelligent than blindly mapping 512 pages */
+    phys_vma.pages = 1024; /* TODO: Be more intelligent than blindly mapping 1024 pages */
     vmm_map_range(mm, phys_vma.start, 0, phys_vma.pages, PAGE_PROT_READ | PAGE_PROT_WRITE, false);
 
     phys_vma_li.vma = &phys_vma;

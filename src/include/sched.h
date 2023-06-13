@@ -10,27 +10,34 @@
 enum task_state {
     TASK_RUNNING,
     TASK_SLEEPING,
+    TASK_WAITING,
     TASK_ZOMBIE,
 };
 
 struct task_struct {
     uint32_t pid;
     enum task_state state;
+    int exit_status;
 
     struct regs *regs;
 
     struct mm *mm;
 
-    // Return value from kcalloc, start sp is this + KERNEL_STACK_SIZE
+    /* Return value from kcalloc, start sp is this + KERNEL_STACK_SIZE */
     void *stack_bottom;
     uint64_t sp;
 
+    /* scheduling linked list pointers */
     struct task_struct *next;
     struct task_struct *prev;
 
+    /*
+     * Process tree linked list pointers. task->sibling forms a singly linked
+     * list among all children of the same parent.
+     */
     struct task_struct *parent;
     struct task_struct *children;
-    struct task_struct *siblings;
+    struct task_struct *sibling;
 
     uint64_t alive_ticks;
 };
@@ -46,7 +53,7 @@ void sched_rr_remove_proc(struct task_struct *t);
 int sched_fork(struct task_struct *t);
 int sched_exec(const char *path, struct task_struct *t);
 int sched_wait(struct task_struct *t, int *wstatus);
-int sched_exit(struct task_struct *t);
+int sched_exit(struct task_struct *t, int status);
 
 void sched_maybe_preempt();
 
