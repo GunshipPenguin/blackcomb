@@ -4,6 +4,7 @@
 #include "gdt.h"
 #include "kmalloc.h"
 #include "string.h"
+#include "tty.h"
 #include "util.h"
 #include "vmm.h"
 
@@ -108,6 +109,7 @@ void start_init()
     init->next = init;
     init->prev = init;
     init->state = TASK_RUNNING;
+    tty_install_stdin_stdout(init);
 
     next_pid = 1000;
 
@@ -189,6 +191,7 @@ int sched_fork(struct task_struct *t)
     new->state = TASK_RUNNING;
     new->mm = mm_dupe(t->mm);
     new->pid = next_pid++;
+    memcpy(new->fdtab, t->fdtab, sizeof(t->fdtab));
 
     init_task_stack(new);
 

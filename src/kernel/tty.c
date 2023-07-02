@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "file.h"
 #include "kmalloc.h"
 #include "ps2.h"
 #include "sched.h"
@@ -20,9 +21,39 @@ unsigned char key_map[256] = {
 
 struct tty *global_tty;
 
+struct file_ops stdin_ops;
+struct file_ops stdout_ops;
+
+static size_t stdout_write(struct file *f, const void *buf, size_t n)
+{
+    return printf("%.*s", n, buf);
+}
+
+static size_t stdin_read(struct file *f, void *buf, size_t n)
+{
+    if (global_tty->waiting_task)
+        panic("tty cannot manage >1 waiting task");
+
+    global_tty->waiting_task = current;
+
+    schedule_sleep();
+
+    int64_t nbytes = global_tty->bufi > n ? n : global_tty->bufi;
+
+    memcpy(buf, global_tty->buf, nbytes);
+    global_tty->bufi = 0;
+
+    return nbytes;
+}
+
 void tty_init()
 {
     global_tty = kcalloc(1, sizeof(*global_tty));
+
+    global_tty->stdin = kcalloc(1, sizeof(struct file));
+    global_tty->stdin->ops = &stdin_ops;
+    global_tty->stdout = kcalloc(1, sizeof(struct file));
+    global_tty->stdout->ops = &stdout_ops;
 }
 
 void tty_send_key(enum ps2_key key)
@@ -46,19 +77,16 @@ print:
     printf("%c", c);
 }
 
-int64_t tty_read(char *buf, size_t n)
+void tty_install_stdin_stdout(struct task_struct *t)
 {
-    if (global_tty->waiting_task)
-        panic("tty cannot manage >1 waiting task");
-
-    global_tty->waiting_task = current;
-
-    schedule_sleep();
-
-    int64_t nbytes = global_tty->bufi > n ? n : global_tty->bufi;
-
-    memcpy(buf, global_tty->buf, nbytes);
-    global_tty->bufi = 0;
-
-    return nbytes;
+    t->fdtab[0] = global_tty->stdin;
+    t->fdtab[1] = global_tty->stdout;
 }
+
+struct file_ops stdin_ops = {
+    .read = stdin_read,
+};
+
+struct file_ops stdout_ops = {
+    .write = stdout_write,
+};

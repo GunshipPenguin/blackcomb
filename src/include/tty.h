@@ -13,6 +13,9 @@ struct tty {
     char buf[TTY_BUF_SIZE];
 
     struct task_struct *waiting_task;
+
+    struct file *stdin;
+    struct file *stdout;
 };
 
 extern struct tty *global_tty;
@@ -20,5 +23,6 @@ extern struct tty *global_tty;
 void tty_init();
 void tty_send_key(enum ps2_key c);
 int64_t tty_read(char *buf, size_t count);
+void tty_install_stdin_stdout(struct task_struct *t);
 
 #endif /* __TTY_H */

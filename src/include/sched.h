@@ -7,6 +7,8 @@
 #include "vmm.h"
 #include "regs.h"
 
+#define TASK_FILE_MAX 16
+
 enum task_state {
     TASK_RUNNING,
     TASK_SLEEPING,
@@ -42,6 +44,8 @@ struct task_struct {
     struct task_struct *parent;
     struct task_struct *children;
     struct task_struct *sibling;
+
+    struct file *fdtab[TASK_FILE_MAX];
 
     uint64_t alive_ticks;
 };

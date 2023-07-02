@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "file.h"
 #include "printf.h"
 #include "regs.h"
 #include "sched.h"
@@ -9,23 +10,26 @@
 
 int64_t sys_read(int fd, void *buf, size_t count)
 {
-    switch (fd) {
-    case 0:
-        return tty_read(buf, count);
-    default:
-        panic("sys_read not implemented for fd != 0");
-    }
+    struct file *f = current->fdtab[fd];
+    if (!f)
+        panic("fd %d does not exist", fd);
+
+    if (!f->ops->read)
+        panic("fd %d ENOSYS", fd);
+
+    return f->ops->read(f, buf, count);
 }
 
 int64_t sys_write(int fd, const void *buf, size_t count)
 {
-    switch (fd) {
-    case 1:
-        printf("%.*s", count, buf);
-        return count;
-    default:
-        panic("only writes to fd 1 (stdout) are supported");
-    }
+    struct file *f = current->fdtab[fd];
+    if (!f)
+        panic("fd %d does not exist", fd);
+
+    if (!f->ops->write)
+        panic("fd %d ENOSYS", fd);
+
+    return f->ops->write(f, buf, count);
 }
 
 int sys_wait(int *wstatus)
