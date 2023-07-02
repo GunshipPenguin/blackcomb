@@ -1,6 +1,8 @@
 #ifndef __TTY_H
 #define __TTY_H
 
+#include "ps2.h"
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -16,7 +18,7 @@ struct tty {
 extern struct tty *global_tty;
 
 void tty_init();
-void tty_send_char(char c);
+void tty_send_key(enum ps2_key c);
 int64_t tty_read(char *buf, size_t count);
 
 #endif /* __TTY_H */
