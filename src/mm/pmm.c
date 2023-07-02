@@ -63,7 +63,7 @@ void region_set_bit(struct mmap_region *region, size_t i)
 void region_unset_bit(struct mmap_region *region, size_t i)
 {
     char *start = P_TO_V(char, region->start);
-    start[i / BITS(sizeof(*start))] &= ~1 << (i % BITS(sizeof(*start)));
+    start[i / BITS(sizeof(*start))] &= ~(1 << (i % BITS(sizeof(*start))));
 }
 
 void pmm_set_mmap(struct multiboot_tag_mmap *mmap)
@@ -130,7 +130,8 @@ uint64_t find_free_page(struct mmap_region *region)
             continue;
 
         region_set_bit(region, i);
-        return (uint64_t)region->start + i * PAGE_SIZE;
+        uint64_t addr = (uint64_t)region->start + i * PAGE_SIZE;
+        return addr;
     }
 
     return 0;
@@ -185,8 +186,9 @@ void pmm_free(uint64_t phys)
 
     for (size_t i = 0; i < n_regions; i++) {
         struct mmap_region *region = &regions[i];
-        if (!(phys > (uint64_t)region->start &&
-              ((uint64_t)region->start + (region->pages * PAGE_SIZE)) < phys))
+
+        if ((phys < (uint64_t)region->start) ||
+            (phys > (uint64_t)region->start + (region->pages * PAGE_SIZE)))
             continue;
 
         region_unset_bit(region, (phys - (uint64_t)region->start) / PAGE_SIZE);

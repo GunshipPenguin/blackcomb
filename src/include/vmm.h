@@ -58,7 +58,7 @@ void kernel_mm_init(struct mm *mm);
 
 struct mm *mm_dupe(struct mm *mm);
 struct mm *mm_new();
-void mm_init();
+void mm_init(struct mm *mm);
 
 void mm_free(struct mm *old);
 

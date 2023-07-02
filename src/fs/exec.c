@@ -22,9 +22,13 @@ void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
     mm_copy_from_buf(mm, ((char *)elf) + map_offset, map_addr, ph->p_filesz + extraspace);
 }
 
-void exec_elf(struct task_struct *task, struct ext2_fs *fs, struct ext2_ino *file)
+void exec_elf(struct task_struct *task, const char *path)
 {
-    void *buf = ext2_read_file(fs, file);
+    struct ext2_ino *in;
+    ext2_namei(rootfs, &in, path);
+    void *buf = ext2_read_file(rootfs, in);
+    free(in);
+
     Elf64_Ehdr *ehdr = buf;
     task->mm = mm_new();
 

@@ -73,6 +73,7 @@ void *kmalloc(size_t size)
     if (!target) {
         /* No free block found, use sbrk to get more memory */
         target = sbrk(sizeof(struct block) + size);
+        target->size = size;
         target->in_use = 1;
 
         target->next = NULL;

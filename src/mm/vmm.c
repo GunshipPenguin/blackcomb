@@ -146,39 +146,41 @@ void vmm_unmap_page(struct mm *mm, uintptr_t virt)
 
     p1_set_entry(mm, p4_i, p3_i, p2_i, p1_i, 0);
 
-    /* TODO: This works but is slow as hell, do something less naive */
-
-    for (int i = 0; i < 1023; i++) {
+    for (int i = 0; i < 512; i++) {
         if (p1_get_entry(mm, p4_i, p3_i, p2_i, i) != 0)
-            goto maybe_free_p2;
+            return;
     }
 
     /* Entire P1 is 0, we can free the frame */
     pmm_free(p2_get_entry(mm, p4_i, p3_i, p2_i) & ~PAGE_MASK);
     p2_set_entry(mm, p4_i, p3_i, p2_i, 0);
 
-maybe_free_p2:
-    for (int i = 0; i < 1023; i++) {
+    for (int i = 0; i < 512; i++) {
         if (p2_get_entry(mm, p4_i, p3_i, i) != 0)
-            goto maybe_free_p3;
+            return;
     }
 
     /* Entire P2 is 0, we can free the frame */
     pmm_free(p3_get_entry(mm, p4_i, p3_i) & ~PAGE_MASK);
     p3_set_entry(mm, p4_i, p3_i, 0);
 
-maybe_free_p3:
-    for (int i = 0; i < 1023; i++) {
+    for (int i = 0; i < 512; i++) {
         if (p3_get_entry(mm, p4_i, i) != 0)
-            goto out;
+            return;
     }
 
     /* Entire P3 is 0, we can free the frame */
     pmm_free(p4_get_entry(mm, p4_i) & ~PAGE_MASK);
     p4_set_entry(mm, p4_i, 0);
 
-out:
-    return;
+    for (int i = 0; i < 512; i++) {
+        if (p4_get_entry(mm, i) != 0)
+            return;
+    }
+
+    /* Entire P4 is 0, we can free the frame */
+    pmm_free(mm->p4);
+    mm->p4 = 0;
 }
 
 uint64_t prot_to_x86_prot(uint64_t prot)
@@ -217,6 +219,29 @@ void vmm_map_range(
         uint64_t off = pg * PAGE_SIZE;
         vmm_map_page(mm, virt + off, phys + off, flags);
     }
+}
+
+void mm_free_reg_vma(struct mm *mm, struct vm_area *vma)
+{
+    if (vma->type != VM_AREA_REG)
+        panic("freeing a non-regular vma");
+
+    for (int pg = 0; pg < vma->pages; pg++) {
+        uint64_t off = PAGE_SIZE * pg;
+
+        uint64_t p4 = P4_NDX(vma->start + off);
+        uint64_t p3 = P3_NDX(vma->start + off);
+        uint64_t p2 = P2_NDX(vma->start + off);
+        uint64_t p1 = P1_NDX(vma->start + off);
+
+        uint64_t phys = p1_get_entry(mm, p4, p3, p2, p1) & ~PAGE_MASK;
+
+        vmm_unmap_page(mm, vma->start + off);
+        pmm_free(phys);
+    }
+
+    if (--vma->refcnt == 0)
+        free(vma);
 }
 
 void anon_mmap(struct mm *mm, uint64_t start, uint64_t pages, uint64_t prot, bool user)
@@ -269,6 +294,23 @@ void mm_share_vma(struct mm *dst, struct mm *src, struct vm_area *vma)
     }
 
     mm_insert_vma(dst, vma);
+}
+
+void mm_unshare_vma(struct mm *mm, struct vm_area *vma)
+{
+    for (int pg = 0; pg < vma->pages; pg++) {
+        uint64_t off = PAGE_SIZE * pg;
+
+        vmm_unmap_page(mm, vma->start + off);
+
+        /*
+         * TODO: If/when we support sharing regular VMAs, pmm_free the page
+         * too if refcnt is 0.
+         */
+    }
+
+    if (--vma->refcnt == 0)
+        free(vma);
 }
 
 void mm_copy_from_mm(struct mm *dst, struct mm *src, uint64_t start, uint64_t pages)
@@ -395,7 +437,6 @@ struct mm *mm_dupe(struct mm *mm)
         case VM_AREA_PHYSMEM:
         case VM_AREA_KERNELTEXT:
         case VM_AREA_KERNELHEAP:
-            mm_share_vma(new, mm, vma);
             break;
         default:
             panic("unknown vm_area_type %d", vma->type);
@@ -408,7 +449,30 @@ struct mm *mm_dupe(struct mm *mm)
 
 void mm_free(struct mm *mm)
 {
-    /* TODO: Implement */
+    struct vm_area_li *curr = mm->vm_areas;
+    while (curr) {
+        struct vm_area *vma = curr->vma;
+
+        switch (vma->type) {
+        case VM_AREA_REG:
+            mm_free_reg_vma(mm, vma);
+            break;
+        case VM_AREA_PHYSMEM:
+        case VM_AREA_KERNELTEXT:
+        case VM_AREA_KERNELHEAP:
+            mm_unshare_vma(mm, vma);
+            break;
+        default:
+            panic("unknown vm_area_type %d", vma->type);
+        }
+
+        struct vm_area_li *next = curr->next;
+        free(curr);
+        curr = next;
+    }
+
+    pmm_free(mm->p4);
+    free(mm);
     return;
 }
 

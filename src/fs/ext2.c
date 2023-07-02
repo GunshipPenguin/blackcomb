@@ -180,6 +180,8 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
         if (!found)
             panic("path %s does not exist", path);
     }
+
+    free(dirbuf);
 }
 
 void ext2_ls(struct ext2_fs *fs, const char *path)

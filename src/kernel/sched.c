@@ -43,7 +43,7 @@ void switch_to(struct task_struct *t)
     if (current_old->pid == current->pid)
         panic("kernel bug: switch to same process");
 
-    __current_task_stack = t->sp;
+    __current_task_stack = t->stack_top;
     __tss.rsp0 = t->sp;
     switch_cr3(t->mm->p4);
 
@@ -80,30 +80,27 @@ void sched_rr_remove_proc(struct task_struct *t)
     t->prev = NULL;
 }
 
-void init_task_stack(struct task_struct *t, struct regs *regs)
+void init_task_stack(struct task_struct *t)
 {
-    t->stack_bottom = kcalloc(1, KERNEL_STACK_SIZE);
-    void *stack_top = (((char *)t->stack_bottom) + KERNEL_STACK_SIZE);
+    t->stack_bottom = (uint64_t)kcalloc(1, KERNEL_STACK_SIZE);
+    t->stack_top = t->stack_bottom + KERNEL_STACK_SIZE;
 
-    t->sp = (uint64_t)stack_top - sizeof(struct fork_frame);
+    t->sp = t->stack_top - sizeof(struct fork_frame);
     struct fork_frame *ff = (struct fork_frame *)t->sp;
 
     ff->itf.rbp = 0;
     extern void pop_regs_and_sysret();
     ff->itf.ret_addr = (uint64_t)&pop_regs_and_sysret;
 
-    ff->regs = *regs;
+    t->regs = &ff->regs;
 }
 
 void start_init()
 {
-    struct ext2_ino *in;
-    ext2_namei(rootfs, &in, "/init");
     struct task_struct *init = kcalloc(1, sizeof(struct task_struct));
-    init->regs = kcalloc(1, sizeof(struct regs));
+    init_task_stack(init);
 
-    exec_elf(init, rootfs, in);
-    init_task_stack(init, init->regs);
+    exec_elf(init, "/init");
 
     init->pid = 1;
     init->alive_ticks = 0;
@@ -116,7 +113,7 @@ void start_init()
 
     proc_root = init;
     current = init;
-    __current_task_stack = init->sp;
+    __current_task_stack = init->stack_top;
     __tss.rsp0 = init->sp;
     switch_cr3(init->mm->p4);
 
@@ -127,16 +124,22 @@ void start_init()
 
 int sched_exec(const char *path, struct task_struct *t)
 {
-    mm_free(t->mm);
-    t->mm = mm_new();
+    struct mm *mm_old = t->mm;
+    exec_elf(t, path);
 
-    struct ext2_ino *in;
-    ext2_namei(rootfs, &in, path);
-    exec_elf(t, rootfs, in);
-
+    /* Cannot do mm_free until after exec_elf as pathname is in old address space. */
+    switch_cr3(kernel_mm.p4);
+    mm_free(mm_old);
     switch_cr3(t->mm->p4);
 
     return 0;
+}
+
+void task_free(struct task_struct *t)
+{
+    mm_free(t->mm);
+    free((void *)t->stack_bottom);
+    free(t);
 }
 
 int sched_wait(struct task_struct *t, int *wstatus)
@@ -160,7 +163,9 @@ retry:
     }
 
     *wstatus = t->exit_status;
-    return child->pid;
+    int ret = child->pid;
+    task_free(child);
+    return ret;
 }
 
 int sched_exit(struct task_struct *t, int status)
@@ -181,16 +186,16 @@ int sched_fork(struct task_struct *t)
 {
     struct task_struct *new = kcalloc(1, sizeof(struct task_struct));
 
-    new->regs = kcalloc(1, sizeof(struct regs));
     new->state = TASK_RUNNING;
-
     new->mm = mm_dupe(t->mm);
     new->pid = next_pid++;
 
-    struct regs regs = *t->regs;
-    regs.rax = 0;
+    init_task_stack(new);
 
-    init_task_stack(new, &regs);
+    /* new->regs now initialized and pointing to the fork frame */
+    *new->regs = *t->regs;
+    new->regs->rax = 0;
+
     sched_rr_insert_proc(new);
     tree_insert_proc(t, new);
 

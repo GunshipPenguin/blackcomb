@@ -23,8 +23,12 @@ struct task_struct {
 
     struct mm *mm;
 
-    /* Return value from kcalloc, start sp is this + KERNEL_STACK_SIZE */
-    void *stack_bottom;
+    /* Return value from kcalloc */
+    uint64_t stack_bottom;
+
+    /* stack_bottom + KERNEL_STACK_SIZE */
+    uint64_t stack_top;
+
     uint64_t sp;
 
     /* scheduling linked list pointers */
