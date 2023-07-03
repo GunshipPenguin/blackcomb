@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "exit.h"
 #include "file.h"
 #include "printf.h"
 #include "regs.h"
@@ -34,7 +35,7 @@ int64_t sys_write(int fd, const void *buf, size_t count)
 
 int sys_wait(int *wstatus)
 {
-    return sched_wait(current, wstatus);
+    return do_wait(current, wstatus);
 }
 
 int sys_fork(void)
@@ -49,7 +50,7 @@ int sys_exec(const char *pathname)
 
 int sys_exit(int status)
 {
-    return sched_exit(current, status);
+    return do_exit(current, status);
 }
 
 void do_syscall(struct regs *regs)

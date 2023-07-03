@@ -97,46 +97,6 @@ void task_free(struct task_struct *t)
     free(t);
 }
 
-int sched_wait(struct task_struct *t, int *wstatus)
-{
-    struct task_struct *child;
-
-retry:
-    child = t->children;
-    while (child) {
-        if (child->state == TASK_ZOMBIE)
-            break;
-
-        child = child->sibling;
-    }
-
-    if (!child) {
-        /* No zombie children, sleep until a child exits */
-        current->state = TASK_WAITING;
-        schedule_sleep();
-        goto retry;
-    }
-
-    *wstatus = t->exit_status;
-    int ret = child->pid;
-    task_free(child);
-    return ret;
-}
-
-int sched_exit(struct task_struct *t, int status)
-{
-    t->state = TASK_ZOMBIE;
-    t->exit_status = status;
-
-    if (t->parent->state == TASK_WAITING) {
-        sched_rr_insert_proc(t->parent);
-        t->parent->state = TASK_RUNNING;
-    }
-
-    schedule_sleep();
-    return 0; /* Never hit */
-}
-
 int sched_fork(struct task_struct *t)
 {
     struct task_struct *new = do_fork(t);

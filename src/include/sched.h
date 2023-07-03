@@ -68,4 +68,6 @@ void sched_maybe_preempt();
 void schedule();
 void schedule_sleep();
 
+void task_free(struct task_struct *t);
+
 #endif /* __SCHED_H__ */
