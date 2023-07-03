@@ -52,8 +52,11 @@ void tty_init()
 
     global_tty->stdin = kcalloc(1, sizeof(struct file));
     global_tty->stdin->ops = &stdin_ops;
+    global_tty->stdin->refcnt = 1;
+
     global_tty->stdout = kcalloc(1, sizeof(struct file));
     global_tty->stdout->ops = &stdout_ops;
+    global_tty->stdout->refcnt = 1;
 }
 
 void tty_send_key(enum ps2_key key)

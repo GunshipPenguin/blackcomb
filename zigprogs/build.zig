@@ -34,4 +34,9 @@ pub fn build(b: *std.build.Builder) void {
     helloworld.setTarget(target);
     helloworld.setBuildMode(mode);
     helloworld.install();
+
+    const ls = b.addExecutable("ls", "src/ls.zig");
+    ls.setTarget(target);
+    ls.setBuildMode(mode);
+    ls.install();
 }

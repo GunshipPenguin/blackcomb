@@ -130,24 +130,29 @@ void ext2_get_blocks(struct ext2_fs *fs, struct ext2_ino *in, char *buf, uint32_
     }
 }
 
-void *ext2_read_file(struct ext2_fs *fs, struct ext2_ino *in)
+void *ext2_read_file(struct ext2_fs *fs, int ino)
 {
-    uint32_t nblk = (in->i_size + fs->block_size - 1) / fs->block_size;
-    char *buf = kmalloc(nblk * fs->block_size);
-    ext2_get_blocks(fs, in, buf, nblk);
-    memset(buf + in->i_size, 0, (nblk * fs->block_size) - in->i_size);
+    struct ext2_ino *inode_buf = kcalloc(1, sizeof(struct ext2_ino));
+    ext2_get_inode(fs, inode_buf, ino);
 
+    uint32_t nblk = (inode_buf->i_size + fs->block_size - 1) / fs->block_size;
+    char *buf = kmalloc(nblk * fs->block_size);
+    ext2_get_blocks(fs, inode_buf, buf, nblk);
+    memset(buf + inode_buf->i_size, 0, (nblk * fs->block_size) - inode_buf->i_size);
+
+    free(inode_buf);
     return buf;
 }
 
-void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
+int ext2_namei(struct ext2_fs *fs, const char *path)
 {
     char comp[256];
     const char *comp_start = path + 1;
     void *dirbuf = kmalloc(fs->block_size);
+    int ino = EXT2_ROOT_INO;
 
-    *in = kmalloc(fs->block_size);
-    memcpy(*in, &fs->rooti, sizeof(fs->rooti));
+    struct ext2_ino *in = kcalloc(1, sizeof(struct ext2_ino));
+    memcpy(in, &fs->rooti, sizeof(fs->rooti));
 
     while (*comp_start != '\0') {
         int l = 0;
@@ -158,7 +163,7 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
 
         comp_start += l;
 
-        ext2_get_block(fs, *in, dirbuf, 0);
+        ext2_get_block(fs, in, dirbuf, 0);
         unsigned int doff = 0;
         bool found = false;
         while (doff < fs->block_size) {
@@ -167,7 +172,7 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
                 goto next_dirent;
 
             if (strncmp(comp, de->name, de->name_len) == 0) {
-                ext2_get_inode(fs, *in, de->inode);
+                ino = de->inode;
                 found = true;
                 break;
             }
@@ -182,6 +187,8 @@ void ext2_namei(struct ext2_fs *fs, struct ext2_ino **in, const char *path)
     }
 
     free(dirbuf);
+    free(in);
+    return ino;
 }
 
 void ext2_ls(struct ext2_fs *fs, const char *path)

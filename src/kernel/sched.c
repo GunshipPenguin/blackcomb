@@ -1,6 +1,7 @@
 #include "sched.h"
 #include "exec.h"
 #include "ext2.h"
+#include "file.h"
 #include "fork.h"
 #include "gdt.h"
 #include "kmalloc.h"
@@ -94,6 +95,12 @@ void task_free(struct task_struct *t)
 {
     mm_free(t->mm);
     free((void *)t->stack_bottom);
+
+    for (int i = 0; i < TASK_FILE_MAX; i++) {
+        if (t->fdtab[i] && --t->fdtab[i]->refcnt == 0)
+            free(t->fdtab[i]);
+    }
+
     free(t);
 }
 

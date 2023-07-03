@@ -3,10 +3,12 @@ pub const stdout = 1;
 
 const sys_read = 0;
 const sys_write = 1;
-const sys_fork = 2;
-const sys_exec = 3;
-const sys_exit = 4;
-const sys_wait = 5;
+const sys_open = 2;
+const sys_close = 3;
+const sys_fork = 4;
+const sys_exec = 5;
+const sys_exit = 6;
+const sys_wait = 7;
 
 pub fn syscall0(number: usize) usize {
     return asm volatile ("syscall"
@@ -68,4 +70,12 @@ pub fn exit(status: u64) i64 {
 
 pub fn wait(wstatus: *u32) i64 {
     return @bitCast(i64, syscall1(sys_wait, @ptrToInt(wstatus)));
+}
+
+pub fn open(path: *const u8) i32 {
+    return @intCast(i32, syscall1(sys_open, @ptrToInt(path)));
+}
+
+pub fn close(fd: i32) i32 {
+    return @intCast(i32, syscall1(sys_close, @intCast(usize, fd)));
 }

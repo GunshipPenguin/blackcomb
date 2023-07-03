@@ -38,6 +38,16 @@ int sys_wait(int *wstatus)
     return do_wait(current, wstatus);
 }
 
+int sys_open(char *path)
+{
+    return do_open(path);
+}
+
+int sys_close(int fd)
+{
+    return do_close(fd);
+}
+
 int sys_fork(void)
 {
     return sched_fork(current);
@@ -68,6 +78,12 @@ void do_syscall(struct regs *regs)
         break;
     case SYS_WRITE:
         regs->rax = sys_write((int)regs->rdi, (void *)regs->rsi, (size_t)regs->rdx);
+        break;
+    case SYS_OPEN:
+        regs->rax = sys_open((void *)regs->rdi);
+        break;
+    case SYS_CLOSE:
+        regs->rax = sys_close((int)regs->rdi);
         break;
     case SYS_WAIT:
         regs->rax = sys_wait((int *)regs->rdi);

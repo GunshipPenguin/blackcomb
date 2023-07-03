@@ -24,10 +24,8 @@ void map_segment(struct mm *mm, void *elf, Elf64_Phdr *ph)
 
 void exec_elf(struct task_struct *task, const char *path)
 {
-    struct ext2_ino *in;
-    ext2_namei(rootfs, &in, path);
-    void *buf = ext2_read_file(rootfs, in);
-    free(in);
+    int ino = ext2_namei(rootfs, path);
+    void *buf = ext2_read_file(rootfs, ino);
 
     Elf64_Ehdr *ehdr = buf;
     task->mm = mm_new();

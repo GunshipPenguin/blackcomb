@@ -1,5 +1,6 @@
 #include "fork.h"
 #include "exec.h"
+#include "file.h"
 #include "kmalloc.h"
 #include "sched.h"
 #include "string.h"
@@ -49,7 +50,13 @@ struct task_struct *do_fork(struct task_struct *t)
     new->state = TASK_RUNNING;
     new->mm = mm_dupe(t->mm);
     new->pid = next_pid++;
-    memcpy(new->fdtab, t->fdtab, sizeof(t->fdtab));
+
+    for (int i = 0; i < TASK_FILE_MAX; i++) {
+        if (t->fdtab[i]) {
+            t->fdtab[i]->refcnt++;
+            new->fdtab[i] = t->fdtab[i];
+        }
+    }
 
     init_task_stack(new);
 
