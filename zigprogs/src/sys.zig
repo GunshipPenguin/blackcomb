@@ -9,6 +9,7 @@ const sys_fork = 4;
 const sys_exec = 5;
 const sys_exit = 6;
 const sys_wait = 7;
+const sys_getdents = 8;
 
 pub fn syscall0(number: usize) usize {
     return asm volatile ("syscall"
@@ -78,4 +79,8 @@ pub fn open(path: *const u8) i32 {
 
 pub fn close(fd: i32) i32 {
     return @intCast(i32, syscall1(sys_close, @intCast(usize, fd)));
+}
+
+pub fn getdents(fd: i32, buf: *const u8, size: usize) i32 {
+    return @intCast(i32, syscall3(sys_getdents, @intCast(usize, fd), @ptrToInt(buf), @intCast(usize, size)));
 }

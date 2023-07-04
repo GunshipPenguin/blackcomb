@@ -141,8 +141,12 @@ extern struct ext2_fs *rootfs;
 struct ext2_fs *ext2_mount_rootfs();
 void ext2_ls(struct ext2_fs *fs, const char *path);
 void ext2_getblock(struct ext2_fs *fs, struct ext2_ino *in, char *buf, unsigned int blk);
+void ext2_get_inode(struct ext2_fs *fs, struct ext2_ino *in, int ino);
 
 int ext2_namei(struct ext2_fs *fs, const char *path);
 void *ext2_read_file(struct ext2_fs *fs, int ino);
+
+extern struct file_ops ext2_file_operations;
+extern struct file_ops ext2_dir_operations;
 
 #endif

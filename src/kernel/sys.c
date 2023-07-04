@@ -63,6 +63,18 @@ int sys_exit(int status)
     return do_exit(current, status);
 }
 
+int sys_getdents(int fd, struct dirent *buf, size_t size)
+{
+    struct file *f = current->fdtab[fd];
+    if (!f)
+        panic("fd %d does not exist", fd);
+
+    if (!f->ops->getdents)
+        panic("fd %d ENOSYS", fd);
+
+    return f->ops->getdents(f, buf, size);
+}
+
 void do_syscall(struct regs *regs)
 {
     current->regs = regs;
@@ -96,6 +108,9 @@ void do_syscall(struct regs *regs)
         break;
     case SYS_EXIT:
         regs->rax = sys_exit((int)regs->rdi);
+        break;
+    case SYS_GETDENTS:
+        regs->rax = sys_getdents((int)regs->rdi, (struct dirent *)regs->rsi, (size_t)regs->rdx);
         break;
     default:
         panic("syscall %d not implemented\n", regs->rax);

@@ -25,6 +25,18 @@ char *strcpy(char *dest, const char *src)
     return dest;
 }
 
+size_t strlcpy(char *dest, const char *src, size_t sz)
+{
+    for (size_t i = 0; i < sz; i++) {
+        dest[i] = src[i];
+
+        if (src[i] == '\0')
+            return i;
+    }
+
+    return sz;
+}
+
 int strcmp(const char *s1, const char *s2)
 {
     while (*s1 && (*s1 == *s2)) {

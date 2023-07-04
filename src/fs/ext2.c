@@ -1,5 +1,6 @@
 #include "ext2.h"
 #include "ata.h"
+#include "file.h"
 #include "kmalloc.h"
 #include "printf.h"
 #include "string.h"
@@ -163,6 +164,9 @@ int ext2_namei(struct ext2_fs *fs, const char *path)
 
         comp_start += l;
 
+        if (*comp_start == '/')
+            comp_start++;
+
         ext2_get_block(fs, in, dirbuf, 0);
         unsigned int doff = 0;
         bool found = false;
@@ -173,6 +177,7 @@ int ext2_namei(struct ext2_fs *fs, const char *path)
 
             if (strncmp(comp, de->name, de->name_len) == 0) {
                 ino = de->inode;
+                ext2_get_inode(fs, in, ino);
                 found = true;
                 break;
             }
@@ -219,3 +224,41 @@ void ext2_ls(struct ext2_fs *fs, const char *path)
         doff += de->rec_len;
     }
 }
+
+size_t ext2_getdents(struct file *f, struct dirent *buf, size_t count)
+{
+    void *data = kmalloc(rootfs->block_size);
+
+    struct ext2_ino in;
+    ext2_get_inode(rootfs, &in, f->ino);
+    read_blk(rootfs, data, in.i_block[0], rootfs->block_size);
+
+    uint32_t doff = 0;
+    uint32_t us_doff = 0;
+
+    while (doff < rootfs->block_size) {
+        struct ext2_dirent *de = (struct ext2_dirent *)(((char *)data) + doff);
+        struct dirent *us_de = (struct dirent *)(((char *)buf) + us_doff);
+
+        if (de->inode == 0)
+            continue;
+
+        us_de->ino = de->inode;
+        us_de->rec_len = sizeof(struct dirent) + de->name_len + 1; /* \0 not included */
+        strlcpy(us_de->name, de->name, de->name_len);
+
+        doff += de->rec_len;
+        us_doff += us_de->rec_len;
+    }
+
+    free(data);
+    return us_doff;
+}
+
+struct file_ops ext2_file_operations = {
+
+};
+
+struct file_ops ext2_dir_operations = {
+    .getdents = ext2_getdents,
+};
